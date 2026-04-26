@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v28: Liability-safe scoring + "이 음식 주의 대상자" panel (10 categories: 당/탄수/나트륨/지방/칼로리/알레르겐/카페인/퓨린/칼륨/알코올)
-const CACHE_NAME = 'smartcon-v28-cautions';
+// v29: Next meal AI recommendation — analyzes current meal gaps/excess + goal + time of day, recommends Top 3 from 12-food DB with reasoning
+const CACHE_NAME = 'smartcon-v29-next-meal';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
