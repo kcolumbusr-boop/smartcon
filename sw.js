@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v27: Score UX clarity — semantic labels (완벽/우수/양호/보통/주의/부적합/위험) + A-F grades + explicit "↑ 높을수록 좋음" indicator (eliminates ambiguity)
-const CACHE_NAME = 'smartcon-v27-score-ux';
+// v28: Liability-safe scoring + "이 음식 주의 대상자" panel (10 categories: 당/탄수/나트륨/지방/칼로리/알레르겐/카페인/퓨린/칼륨/알코올)
+const CACHE_NAME = 'smartcon-v28-cautions';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
