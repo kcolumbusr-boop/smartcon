@@ -1148,9 +1148,9 @@
       <div class="list-item" style="padding:8px 0;">
         <div class="list-main">
           <div class="list-title">현재 버전</div>
-          <div class="list-sub" id="appVersionSub">v26 · 2026-04-22 · 당뇨 정밀 평가 + 의료 패널</div>
+          <div class="list-sub" id="appVersionSub">v27 · 2026-04-22 · 직관적 점수 UX (등급제)</div>
         </div>
-        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v26</span>
+        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v27</span>
       </div>
       <div style="height:8px"></div>
       <button class="btn btn-primary" onclick="forceAppUpdate()" style="background:linear-gradient(135deg,#10b981,#06b6d4);">
@@ -2945,6 +2945,31 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       };
     }
 
+    // 점수를 시맨틱 라벨 + 색상으로 변환 (직관적 이해용)
+    function scoreToLabel(score) {
+      if (score >= 90) return { label: '완벽',   short: 'A+', color: '#10b981', bg: 'rgba(16,185,129,.15)', emoji: '🟢' };
+      if (score >= 75) return { label: '우수',   short: 'A',  color: '#22c55e', bg: 'rgba(34,197,94,.15)',  emoji: '🟢' };
+      if (score >= 60) return { label: '양호',   short: 'B',  color: '#84cc16', bg: 'rgba(132,204,22,.15)', emoji: '🟢' };
+      if (score >= 45) return { label: '보통',   short: 'C',  color: '#f59e0b', bg: 'rgba(245,158,11,.15)', emoji: '🟡' };
+      if (score >= 30) return { label: '주의',   short: 'D',  color: '#fb923c', bg: 'rgba(251,146,60,.15)', emoji: '🟠' };
+      if (score >= 15) return { label: '부적합', short: 'E',  color: '#f87171', bg: 'rgba(248,113,113,.15)', emoji: '🔴' };
+      return                   { label: '위험',   short: 'F',  color: '#ef4444', bg: 'rgba(239,68,68,.15)',  emoji: '🔴' };
+    }
+
+    // 새 점수 카드 — 시맨틱 라벨 + 등급 + 색상 (모호함 제거)
+    function scoreCard(score, title, subtitle) {
+      const sem = scoreToLabel(score);
+      return `
+        <div style="flex:1; min-width:0; padding:12px 8px; background:${sem.bg}; border:1.5px solid ${sem.color}55; border-radius:12px; text-align:center;">
+          <div style="font-size:22px; font-weight:900; color:${sem.color}; line-height:1.1; letter-spacing:-.5px;">${sem.emoji} ${sem.label}</div>
+          <div style="font-size:11px; color:var(--muted); margin-top:4px;">${score}점 · ${sem.short}등급</div>
+          <div style="height:1px; background:${sem.color}33; margin:8px 4px;"></div>
+          <div style="font-size:11.5px; font-weight:700; color:var(--text); line-height:1.3;">${title}</div>
+          <div style="font-size:10px; color:var(--muted); margin-top:2px;">${subtitle}</div>
+        </div>
+      `;
+    }
+
     function renderAnalysis(items, t, scores, emoji, img) {
       const goal = state.profile.goal;
       const pairings = getPairings(items, t);
@@ -3007,13 +3032,21 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
             ` : ''}
           </div>
 
-          <div class="score-row" style="margin-top:16px;">
-            ${scoreRing(scores.diet, '다이어트', '#10b981')}
-            ${scoreRing(scores.diabetes, '혈당 친화도', '#3b82f6')}
-            ${scoreRing(scores.muscle, '근육 증진', '#8b5cf6')}
-          </div>
-          <div style="font-size:10.5px; color:var(--muted); text-align:center; margin-top:4px; line-height:1.5;">
-            ※ 점수는 <b>해당 목표에 적합한 정도</b>(높을수록 좋음). 위험도 아님.
+          <!-- 🎯 목표별 적합도 카드 (직관적 시맨틱) -->
+          <div style="margin-top:16px; padding:12px; background:rgba(0,0,0,.2); border-radius:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:11px;">
+              <span style="color:var(--muted); font-weight:700; letter-spacing:.04em;">🎯 목표별 적합도</span>
+              <span style="color:#6ee7b7; background:rgba(16,185,129,.15); padding:2px 8px; border-radius:4px; font-weight:700;">↑ 높을수록 좋음</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:stretch;">
+              ${scoreCard(scores.diet, '다이어트', '체중 관리 적합도')}
+              ${scoreCard(scores.diabetes, '혈당 안정', '당뇨 관리 적합도')}
+              ${scoreCard(scores.muscle, '근육 증진', '운동 효과 적합도')}
+            </div>
+            <div style="font-size:10px; color:var(--muted); text-align:center; margin-top:8px; line-height:1.5;">
+              💡 <b>완벽(A+)</b> · 우수 · 양호 · 보통 · 주의 · 부적합 · <b>위험(F)</b><br>
+              모든 점수는 "해당 목표에 적합한 정도" — <b>위험 수치가 아닙니다</b>
+            </div>
           </div>
 
           ${(goal === 'diabetes' || (state.profile.has_diabetes)) ? renderDiabetesAdvisory(t, items, scores.diabetes) : ''}

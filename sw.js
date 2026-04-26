@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v26: Diabetes-aware scoring — conservative algorithm (60g carb cap, GI weighting), "혈당 친화도" relabel, dedicated medical advisory panel with predicted post-meal BG
-const CACHE_NAME = 'smartcon-v26-diabetes';
+// v27: Score UX clarity — semantic labels (완벽/우수/양호/보통/주의/부적합/위험) + A-F grades + explicit "↑ 높을수록 좋음" indicator (eliminates ambiguity)
+const CACHE_NAME = 'smartcon-v27-score-ux';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
