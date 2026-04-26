@@ -1148,9 +1148,9 @@
       <div class="list-item" style="padding:8px 0;">
         <div class="list-main">
           <div class="list-title">현재 버전</div>
-          <div class="list-sub" id="appVersionSub">v25 · 2026-04-22 · 음식 판정 + 영양 검증</div>
+          <div class="list-sub" id="appVersionSub">v26 · 2026-04-22 · 당뇨 정밀 평가 + 의료 패널</div>
         </div>
-        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v25</span>
+        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v26</span>
       </div>
       <div style="height:8px"></div>
       <button class="btn btn-primary" onclick="forceAppUpdate()" style="background:linear-gradient(135deg,#10b981,#06b6d4);">
@@ -2714,6 +2714,101 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       return { '과일':'🍎', '채소':'🥗', '음료':'☕', '간식':'🍪', '한식':'🍚', '양식':'🍝', '일식':'🍣', '중식':'🥡' }[cat];
     }
 
+    // 당뇨 환자 전용 상세 의료 자문 패널
+    function renderDiabetesAdvisory(t, items, score) {
+      const avgGI = items.reduce((s,i) => s + (i.gi || FOOD_DB[i.name]?.gi || 50), 0) / items.length;
+      const carb = t.c || 0;
+      const sugar = t.sugar || 0;
+      const fiber = t.fiber || 0;
+      const netCarb = Math.max(0, carb - fiber);
+
+      // 식후 혈당 예측 (60kg 기준 단순 모델 — 의학적 정확도 보장 안 함)
+      // 베이스라인 95 + 탄수 0.5/g + GI 보정
+      const expectedPeak = Math.round(95 + (netCarb * 0.45) * (avgGI / 50));
+
+      // 카테고리 판정
+      let safetyLevel, safetyColor, safetyText, safetyIcon;
+      if (score >= 80 && expectedPeak < 140) {
+        safetyLevel = 'safe'; safetyColor = '#10b981'; safetyIcon = '✅';
+        safetyText = '당뇨 관리에 적합한 식사로 평가됩니다';
+      } else if (score >= 60 && expectedPeak < 160) {
+        safetyLevel = 'moderate'; safetyColor = '#f59e0b'; safetyIcon = '⚠️';
+        safetyText = '식후 혈당 측정 권장 — 적정량 섭취 시 OK';
+      } else if (score >= 40) {
+        safetyLevel = 'caution'; safetyColor = '#fb923c'; safetyIcon = '🟠';
+        safetyText = '주의 필요 — 양 줄이거나 단백질·채소와 함께';
+      } else {
+        safetyLevel = 'risk'; safetyColor = '#ef4444'; safetyIcon = '🚨';
+        safetyText = '혈당 급상승 위험 — 가능하면 다른 식사로 대체';
+      }
+
+      const carbStatus = carb < 40 ? { color: '#10b981', label: '적정' }
+                       : carb < 60 ? { color: '#f59e0b', label: '주의' }
+                       : { color: '#ef4444', label: '과다' };
+      const giStatus = avgGI < 55 ? { color: '#10b981', label: '저GI' }
+                     : avgGI < 70 ? { color: '#f59e0b', label: '중GI' }
+                     : { color: '#ef4444', label: '고GI' };
+      const peakStatus = expectedPeak < 140 ? { color: '#10b981', label: '정상' }
+                       : expectedPeak < 180 ? { color: '#f59e0b', label: '식후과혈당' }
+                       : { color: '#ef4444', label: '심각' };
+
+      return `
+        <div style="margin-top:14px; padding:14px; border-radius:12px; background:linear-gradient(145deg, rgba(59,130,246,.08), rgba(15,23,42,.4)); border:1.5px solid ${safetyColor}55;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.06);">
+            <span style="font-size:24px;">🩺</span>
+            <div style="flex:1;">
+              <div style="font-size:11px; color:var(--muted); font-weight:600; letter-spacing:.04em;">당뇨 환자 전용 분석</div>
+              <div style="font-size:14px; font-weight:800; color:${safetyColor}; line-height:1.4;">${safetyIcon} ${safetyText}</div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:12px;">
+            <div style="background:rgba(0,0,0,.3); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:10px; color:var(--muted); margin-bottom:3px;">탄수화물</div>
+              <div style="font-size:18px; font-weight:900; color:${carbStatus.color};">${Math.round(carb)}<span style="font-size:11px; color:var(--muted);">g</span></div>
+              <div style="font-size:9px; color:${carbStatus.color}; font-weight:700; margin-top:2px;">${carbStatus.label}</div>
+            </div>
+            <div style="background:rgba(0,0,0,.3); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:10px; color:var(--muted); margin-bottom:3px;">평균 GI</div>
+              <div style="font-size:18px; font-weight:900; color:${giStatus.color};">${Math.round(avgGI)}</div>
+              <div style="font-size:9px; color:${giStatus.color}; font-weight:700; margin-top:2px;">${giStatus.label}</div>
+            </div>
+            <div style="background:rgba(0,0,0,.3); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:10px; color:var(--muted); margin-bottom:3px;">예상 혈당</div>
+              <div style="font-size:18px; font-weight:900; color:${peakStatus.color};">${expectedPeak}<span style="font-size:10px; color:var(--muted);">mg/dL</span></div>
+              <div style="font-size:9px; color:${peakStatus.color}; font-weight:700; margin-top:2px;">${peakStatus.label}</div>
+            </div>
+          </div>
+
+          <div style="background:rgba(0,0,0,.25); border-radius:8px; padding:10px 12px; font-size:11.5px; line-height:1.7;">
+            <div style="color:#fcd34d; font-weight:700; margin-bottom:4px;">📋 당뇨 환자 권장 기준 비교</div>
+            <div style="color:var(--text);">
+              • 탄수: <b>50–60g/끼 권장</b> — 이번 식사 ${Math.round(carb)}g <span style="color:${carbStatus.color}; font-weight:700;">(${carbStatus.label})</span><br>
+              • GI: <b>55 이하 권장</b> — 평균 ${Math.round(avgGI)} <span style="color:${giStatus.color}; font-weight:700;">(${giStatus.label})</span><br>
+              • 식후 2h 혈당: <b>180 미만 목표</b> — 예상 ${expectedPeak} <span style="color:${peakStatus.color}; font-weight:700;">(${peakStatus.label})</span><br>
+              • 순탄수(탄수-섬유): ${Math.round(netCarb)}g
+            </div>
+          </div>
+
+          <div style="margin-top:10px; padding:10px; background:rgba(239,68,68,.06); border-left:3px solid #ef4444; border-radius:6px; font-size:10.5px; color:#fca5a5; line-height:1.6;">
+            ⚠️ <b>의료 면책 고지</b><br>
+            본 분석은 <b>참고용</b>이며 의학적 진단·처방을 대체하지 않습니다.
+            1형/2형 당뇨, 임신성 당뇨, 인슐린·약 복용 환자는 반드시 <b>주치의 상담</b> 후 식단 결정.
+            개인별 인슐린 감수성·약물·운동량에 따라 실제 혈당 반응이 크게 다를 수 있습니다.
+          </div>
+
+          ${expectedPeak >= 160 ? `
+            <div style="margin-top:8px; padding:10px; background:rgba(16,185,129,.08); border-radius:6px; font-size:11px; color:#6ee7b7; line-height:1.6;">
+              💡 <b>혈당 급상승 완화 방법</b><br>
+              • 식이섬유 먼저 (샐러드·나물) → 탄수 → 단백질 순 식사<br>
+              • 식후 10–30분 산책 → 혈당 피크 30% 감소<br>
+              • 양 줄이기: 현재 ${Math.round(carb)}g → 50g 이하로
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
     // 영양값 sanity check — AI 환각 감지
     // 당이 탄수보다 많거나, 칼로리와 영양소가 맞지 않으면 경고
     function validateNutrition(t, items) {
@@ -2799,10 +2894,30 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       const diet = Math.max(0, Math.min(100,
         100 - Math.max(0, t.kcal - 500)/10 + t.fiber*3 - Math.max(0, t.sugar-20)*2
       ));
+
+      // 당뇨 점수 — 보수적 평가 (한국 당뇨협회 기준 반영)
+      // 당뇨 환자 한 끼 권장: 탄수 50–60g, GI 55 이하, 당 10g 이하
       const avgGI = items.reduce((s,i) => s + (i.gi || FOOD_DB[i.name]?.gi || 50), 0) / items.length;
-      const diabetes = Math.max(0, Math.min(100,
-        100 - Math.max(0, avgGI-50)*2 - Math.max(0, t.sugar-15)*3 + t.fiber*4
-      ));
+      const carbPerMeal = t.c || 0;
+
+      let diabetesScore = 100;
+      // GI 페널티 — 50 초과부터, 70 이상은 강한 페널티
+      if (avgGI > 70) diabetesScore -= (avgGI - 70) * 3 + 20;
+      else if (avgGI > 55) diabetesScore -= (avgGI - 55) * 1.5;
+
+      // 탄수 페널티 — 한 끼 50g 초과부터
+      if (carbPerMeal > 70) diabetesScore -= (carbPerMeal - 70) * 1.0 + 15;
+      else if (carbPerMeal > 50) diabetesScore -= (carbPerMeal - 50) * 0.5;
+
+      // 당 페널티 — 10g 초과부터 강하게
+      if (t.sugar > 25) diabetesScore -= (t.sugar - 25) * 2.5 + 15;
+      else if (t.sugar > 10) diabetesScore -= (t.sugar - 10) * 1.5;
+
+      // 섬유 보너스 — 단, 상한 있음 (섬유로 모든 페널티 상쇄 방지)
+      diabetesScore += Math.min(15, t.fiber * 2);
+
+      const diabetes = Math.max(0, Math.min(100, diabetesScore));
+
       const muscle = Math.max(0, Math.min(100,
         t.p * 3 + Math.min(40, t.c) - Math.max(0, t.f-25)
       ));
@@ -2894,9 +3009,14 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
 
           <div class="score-row" style="margin-top:16px;">
             ${scoreRing(scores.diet, '다이어트', '#10b981')}
-            ${scoreRing(scores.diabetes, '당뇨', '#3b82f6')}
-            ${scoreRing(scores.muscle, '근육', '#8b5cf6')}
+            ${scoreRing(scores.diabetes, '혈당 친화도', '#3b82f6')}
+            ${scoreRing(scores.muscle, '근육 증진', '#8b5cf6')}
           </div>
+          <div style="font-size:10.5px; color:var(--muted); text-align:center; margin-top:4px; line-height:1.5;">
+            ※ 점수는 <b>해당 목표에 적합한 정도</b>(높을수록 좋음). 위험도 아님.
+          </div>
+
+          ${(goal === 'diabetes' || (state.profile.has_diabetes)) ? renderDiabetesAdvisory(t, items, scores.diabetes) : ''}
 
           <div class="divider"></div>
 

@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v25: Food analysis verdict — clear 🟢/🟡/🔴 conclusion, score reasons, actionable tips, AI nutrition sanity warnings
-const CACHE_NAME = 'smartcon-v25-verdict';
+// v26: Diabetes-aware scoring — conservative algorithm (60g carb cap, GI weighting), "혈당 친화도" relabel, dedicated medical advisory panel with predicted post-meal BG
+const CACHE_NAME = 'smartcon-v26-diabetes';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
