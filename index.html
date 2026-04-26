@@ -1148,9 +1148,9 @@
       <div class="list-item" style="padding:8px 0;">
         <div class="list-main">
           <div class="list-title">현재 버전</div>
-          <div class="list-sub" id="appVersionSub">v24 · 2026-04-22 · 마이크 제스처 보존 수정</div>
+          <div class="list-sub" id="appVersionSub">v25 · 2026-04-22 · 음식 판정 + 영양 검증</div>
         </div>
-        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v24</span>
+        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v25</span>
       </div>
       <div style="height:8px"></div>
       <button class="btn btn-primary" onclick="forceAppUpdate()" style="background:linear-gradient(135deg,#10b981,#06b6d4);">
@@ -2714,6 +2714,87 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       return { '과일':'🍎', '채소':'🥗', '음료':'☕', '간식':'🍪', '한식':'🍚', '양식':'🍝', '일식':'🍣', '중식':'🥡' }[cat];
     }
 
+    // 영양값 sanity check — AI 환각 감지
+    // 당이 탄수보다 많거나, 칼로리와 영양소가 맞지 않으면 경고
+    function validateNutrition(t, items) {
+      const warnings = [];
+      // 당 > 탄수: 물리적으로 불가능
+      if (t.sugar > t.c + 5) warnings.push({ type: 'sugar_gt_carb', msg: `당(${Math.round(t.sugar)}g)이 탄수(${Math.round(t.c)}g)보다 많음 — AI 인식 오류 가능성` });
+      // 당 > 100g per 100g portion: 거의 모든 식품에서 불가능
+      const totalPortion = items.reduce((s, i) => s + (i.portion || 100), 0);
+      if (t.sugar > totalPortion * 0.95) warnings.push({ type: 'sugar_too_high', msg: `${totalPortion}g 음식에 당 ${Math.round(t.sugar)}g — 비현실적 수치` });
+      // 칼로리 < 영양소 합 × 4 (탄단지 1g당 4·4·9 kcal)
+      const expectedKcal = (t.p || 0) * 4 + (t.c || 0) * 4 + (t.f || 0) * 9;
+      if (Math.abs(t.kcal - expectedKcal) > t.kcal * 0.4 && t.kcal > 50) {
+        warnings.push({ type: 'kcal_mismatch', msg: `칼로리(${Math.round(t.kcal)})와 영양소 합(${Math.round(expectedKcal)})이 크게 다름` });
+      }
+      return warnings;
+    }
+
+    // 종합 판정: 사용자 목표 기준으로 verdict + 이유 + 조언 생성
+    function buildVerdict(t, scores, items, goal) {
+      const goalLabel = { diet: '다이어트', diabetes: '당뇨 관리', muscle: '근육 증진' }[goal] || '건강 관리';
+      const mainScore = goal === 'diet' ? scores.diet : goal === 'diabetes' ? scores.diabetes : goal === 'muscle' ? scores.muscle : Math.round((scores.diet+scores.diabetes+scores.muscle)/3);
+
+      // 5단계 등급
+      let level, color, emoji, headline;
+      if (mainScore >= 80)      { level = 'excellent'; color = '#10b981'; emoji = '🟢'; headline = '아주 좋아요!'; }
+      else if (mainScore >= 60) { level = 'good';      color = '#22c55e'; emoji = '🟢'; headline = '좋아요'; }
+      else if (mainScore >= 40) { level = 'moderate';  color = '#f59e0b'; emoji = '🟡'; headline = '괜찮지만 주의'; }
+      else if (mainScore >= 20) { level = 'caution';   color = '#fb923c'; emoji = '🟠'; headline = '권장하지 않아요'; }
+      else                       { level = 'bad';       color = '#ef4444'; emoji = '🔴'; headline = '피하는 게 좋아요'; }
+
+      // 점수의 "이유" 생성 (목표별)
+      const reasons = [];
+      const tips = [];
+
+      const avgGI = items.reduce((s,i) => s + (i.gi || FOOD_DB[i.name]?.gi || 50), 0) / items.length;
+      const sugarPer100 = (t.sugar / Math.max(1, items.reduce((s,i)=>s+(i.portion||100),0))) * 100;
+
+      if (goal === 'diabetes') {
+        if (avgGI < 55) reasons.push({ ok: true, text: `낮은 GI (${Math.round(avgGI)}) — 혈당 천천히 상승` });
+        else if (avgGI > 70) reasons.push({ ok: false, text: `높은 GI (${Math.round(avgGI)}) — 혈당 급상승 위험` });
+        else reasons.push({ ok: null, text: `중간 GI (${Math.round(avgGI)}) — 적정량 섭취 권장` });
+
+        if (t.sugar < 10) reasons.push({ ok: true, text: `당 ${Math.round(t.sugar)}g — 안전 범위` });
+        else if (t.sugar < 25) reasons.push({ ok: null, text: `당 ${Math.round(t.sugar)}g — 적정 섭취` });
+        else reasons.push({ ok: false, text: `당 ${Math.round(t.sugar)}g — 과다, 식후 30분 산책 권장` });
+
+        if (t.fiber > 5) reasons.push({ ok: true, text: `섬유 ${Math.round(t.fiber)}g — 혈당 완충 효과` });
+        else if (t.fiber < 2) reasons.push({ ok: false, text: `섬유 ${Math.round(t.fiber)}g — 부족, 채소 곁들이기` });
+
+        // 조언
+        if (t.sugar > 20) tips.push('🚶 식후 10–30분 가볍게 걸으면 혈당 피크 30% 감소');
+        if (avgGI > 60) tips.push('🥗 식이섬유(샐러드·견과)와 함께 먹으면 GI 영향 완화');
+        if (mainScore >= 70) tips.push('✅ 당뇨 관리에 적합한 음식 — 적정량 섭취 OK');
+      }
+      else if (goal === 'diet') {
+        if (t.kcal < 300) reasons.push({ ok: true, text: `${Math.round(t.kcal)} kcal — 가벼운 식사` });
+        else if (t.kcal < 600) reasons.push({ ok: null, text: `${Math.round(t.kcal)} kcal — 적정 한 끼` });
+        else reasons.push({ ok: false, text: `${Math.round(t.kcal)} kcal — 한 끼치고 많음` });
+
+        if (t.fiber > 5) reasons.push({ ok: true, text: `섬유 ${Math.round(t.fiber)}g — 포만감 지속` });
+        if (t.sugar > 25) reasons.push({ ok: false, text: `당 ${Math.round(t.sugar)}g — 인슐린 분비로 지방 저장 촉진` });
+        if (t.p > 20) reasons.push({ ok: true, text: `단백질 ${Math.round(t.p)}g — 근육 보존, 포만감` });
+
+        if (t.kcal > 700) tips.push('⚖️ 다음 끼니 200–300 kcal로 조절 권장');
+        if (t.sugar > 30) tips.push('🍵 무가당 차로 단맛 욕구 대체 추천');
+      }
+      else if (goal === 'muscle') {
+        if (t.p > 30) reasons.push({ ok: true, text: `단백질 ${Math.round(t.p)}g — 근합성에 충분` });
+        else if (t.p > 15) reasons.push({ ok: null, text: `단백질 ${Math.round(t.p)}g — 보통` });
+        else reasons.push({ ok: false, text: `단백질 ${Math.round(t.p)}g — 부족, 닭가슴살·계란 추가` });
+
+        if (t.c > 30 && t.c < 80) reasons.push({ ok: true, text: `탄수 ${Math.round(t.c)}g — 운동 에너지원 적합` });
+        if (t.f > 25) reasons.push({ ok: false, text: `지방 ${Math.round(t.f)}g — 과다, 흡수 지연` });
+
+        if (t.p < 25) tips.push('🍳 단백질 추가: 계란 2개 (12g) 또는 그릭요거트 (15g)');
+        if (mainScore >= 70) tips.push('💪 근성장에 좋은 식사 — 운동 후 1–2시간 내 추천');
+      }
+
+      return { level, color, emoji, headline, mainScore, goalLabel, reasons, tips };
+    }
+
     function calcScoresV2(t, goal, items) {
       const diet = Math.max(0, Math.min(100,
         100 - Math.max(0, t.kcal - 500)/10 + t.fiber*3 - Math.max(0, t.sugar-20)*2
@@ -2751,11 +2832,14 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
 
     function renderAnalysis(items, t, scores, emoji, img) {
       const goal = state.profile.goal;
-      const mainScore = goal === 'diet' ? scores.diet : goal === 'diabetes' ? scores.diabetes : goal === 'muscle' ? scores.muscle : Math.round((scores.diet+scores.diabetes+scores.muscle)/3);
       const pairings = getPairings(items, t);
       const bgPeak = goal === 'diabetes' ? predictBG(t) : null;
-
       const hasKey = state.settings.apiKey && state.settings.apiKey.startsWith('AIza');
+
+      // 종합 판정 + 영양값 검증
+      const verdict = buildVerdict(t, scores, items, goal);
+      const warnings = validateNutrition(t, items);
+
       return `
         <div class="analysis-panel">
           <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">${hasKey ? '✨ Gemini AI 분석 완료' : '🎲 모의 분석 (AI 연결 안 됨)'} · 신뢰도 ${Math.round(items.reduce((s,i)=>s+i.confidence,0)/items.length*100)}%</div>
@@ -2763,6 +2847,49 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
           <div class="card-subtitle">${items.map(i => `${i.portion}g`).join(' / ')}</div>
           <div style="margin-top:8px;">
             <button class="btn btn-ghost btn-small" onclick="openCorrection()">✏️ 틀렸어요, 수정</button>
+          </div>
+
+          ${warnings.length ? `
+            <div style="margin-top:12px; padding:10px 12px; background:rgba(245,158,11,.1); border-left:3px solid #f59e0b; border-radius:8px; font-size:11px; color:#fcd34d; line-height:1.6;">
+              ⚠️ <b>AI 영양값 검증 경고</b><br>
+              ${warnings.map(w => `• ${w.msg}`).join('<br>')}
+              <br><span style="color:var(--muted);">→ "✏️ 틀렸어요, 수정"으로 직접 수정 권장</span>
+            </div>
+          ` : ''}
+
+          <!-- 🎯 메인 판정 카드 -->
+          <div style="margin-top:14px; padding:16px; border-radius:14px; background:linear-gradient(145deg, ${verdict.color}22, ${verdict.color}08); border:2px solid ${verdict.color}55;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+              <div style="font-size:36px;">${verdict.emoji}</div>
+              <div style="flex:1;">
+                <div style="font-size:11px; color:var(--muted); font-weight:600; letter-spacing:.05em;">${verdict.goalLabel} 기준</div>
+                <div style="font-size:18px; font-weight:900; color:${verdict.color}; letter-spacing:-.3px;">${verdict.headline}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:32px; font-weight:900; color:${verdict.color}; line-height:1;">${verdict.mainScore}</div>
+                <div style="font-size:10px; color:var(--muted);">/100</div>
+              </div>
+            </div>
+
+            ${verdict.reasons.length ? `
+              <div style="margin-top:8px; padding-top:10px; border-top:1px solid ${verdict.color}33;">
+                <div style="font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px; letter-spacing:.04em;">📋 점수 근거</div>
+                ${verdict.reasons.map(r => `
+                  <div style="font-size:12.5px; line-height:1.7; color:var(--text); padding:2px 0;">
+                    ${r.ok === true ? '✅' : r.ok === false ? '⚠️' : 'ℹ️'} ${r.text}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            ${verdict.tips.length ? `
+              <div style="margin-top:10px; padding:10px; background:rgba(0,0,0,.2); border-radius:8px;">
+                <div style="font-size:11px; font-weight:700; color:#fcd34d; margin-bottom:6px;">💡 실행 조언</div>
+                ${verdict.tips.map(tip => `
+                  <div style="font-size:12.5px; line-height:1.7; color:var(--text); padding:2px 0;">${tip}</div>
+                `).join('')}
+              </div>
+            ` : ''}
           </div>
 
           <div class="score-row" style="margin-top:16px;">

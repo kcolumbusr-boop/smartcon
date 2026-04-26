@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v24: Mic user-gesture preservation — getUserMedia called sync in click handler, plus "Grant now" button in diagnostics modal
-const CACHE_NAME = 'smartcon-v24-mic-gesture';
+// v25: Food analysis verdict — clear 🟢/🟡/🔴 conclusion, score reasons, actionable tips, AI nutrition sanity warnings
+const CACHE_NAME = 'smartcon-v25-verdict';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
