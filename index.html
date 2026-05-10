@@ -889,8 +889,9 @@
       <span>스마트콘</span>
     </div>
     <div class="header-actions">
-      <button type="button" class="icon-btn" onclick="goTo('report')" title="리포트" aria-label="주간 리포트로 이동">📊</button>
-      <button type="button" class="icon-btn" onclick="goTo('profile')" title="프로필" aria-label="프로필로 이동">👤</button>
+      <button type="button" class="icon-btn" onclick="openHelpModal()" title="도움말" aria-label="도움말 보기">❓</button>
+      <button type="button" class="icon-btn" onclick="goTo('report')" title="리포트" aria-label="주간 리포트로 이동" data-i18n-aria="header_report">📊</button>
+      <button type="button" class="icon-btn" onclick="goTo('profile')" title="프로필" aria-label="프로필로 이동" data-i18n-aria="header_profile">👤</button>
     </div>
   </header>
 
@@ -999,8 +1000,12 @@
       <button class="btn btn-ghost" onclick="openInventoryAdd()">+ 직접 추가</button>
     </div>
 
+    <!-- 만료 대시보드 (renderInventory에서 동적 채움) -->
+    <div id="expiryDashboard"></div>
+
     <div class="tabs">
       <div class="tab active" data-loc="all" onclick="setInventoryTab('all')">전체</div>
+      <div class="tab" data-loc="expiring" onclick="setInventoryTab('expiring')">⚠️ 임박</div>
       <div class="tab" data-loc="fridge" onclick="setInventoryTab('fridge')">냉장</div>
       <div class="tab" data-loc="freezer" onclick="setInventoryTab('freezer')">냉동</div>
       <div class="tab" data-loc="pantry" onclick="setInventoryTab('pantry')">팬트리</div>
@@ -1547,6 +1552,43 @@
       '고구마': { kcal: 86, p: 2, c: 20, f: 0.1, fiber: 3, sodium: 55, sugar: 4, gi: 54 },
       '아메리카노': { kcal: 2, p: 0.1, c: 0.4, f: 0, fiber: 0, sodium: 2, sugar: 0, gi: 0 },
       '라떼': { kcal: 60, p: 3, c: 5, f: 3, fiber: 0, sodium: 40, sugar: 5, gi: 30 },
+      // ── 음료 추가 ──
+      '녹차': { kcal: 1, p: 0.2, c: 0.2, f: 0, fiber: 0, sodium: 1, sugar: 0, gi: 0 },
+      '홍차': { kcal: 1, p: 0, c: 0.3, f: 0, fiber: 0, sodium: 3, sugar: 0, gi: 0 },
+      '우유': { kcal: 64, p: 3.2, c: 4.7, f: 3.6, fiber: 0, sodium: 44, sugar: 4.7, gi: 31 },
+      '두유': { kcal: 54, p: 3.3, c: 6.3, f: 1.8, fiber: 0.6, sodium: 51, sugar: 4, gi: 30 },
+      '요거트': { kcal: 61, p: 3.5, c: 4.7, f: 3.3, fiber: 0, sodium: 46, sugar: 4.7, gi: 35 },
+      '그릭요거트': { kcal: 97, p: 9, c: 4, f: 5, fiber: 0, sodium: 36, sugar: 4, gi: 11 },
+      '오렌지주스': { kcal: 45, p: 0.7, c: 10.4, f: 0.2, fiber: 0.2, sodium: 1, sugar: 8.4, gi: 50 },
+      '콜라': { kcal: 42, p: 0, c: 10.6, f: 0, fiber: 0, sodium: 4, sugar: 10.6, gi: 63 },
+      '사이다': { kcal: 41, p: 0, c: 10.4, f: 0, fiber: 0, sodium: 7, sugar: 10.4, gi: 65 },
+      '에너지드링크': { kcal: 45, p: 0, c: 11, f: 0, fiber: 0, sodium: 105, sugar: 11, gi: 70 },
+      '맥주': { kcal: 43, p: 0.5, c: 3.6, f: 0, fiber: 0, sodium: 4, sugar: 0, gi: 89 },
+      '소주': { kcal: 127, p: 0, c: 0, f: 0, fiber: 0, sodium: 1, sugar: 0, gi: 0 },
+      '와인': { kcal: 83, p: 0.1, c: 2.6, f: 0, fiber: 0, sodium: 4, sugar: 0.6, gi: 0 },
+      '막걸리': { kcal: 50, p: 1.6, c: 5.7, f: 0.5, fiber: 0, sodium: 5, sugar: 1.5, gi: 50 },
+      // ── 간식·디저트 ──
+      '아이스크림': { kcal: 207, p: 3.5, c: 24, f: 11, fiber: 0.7, sodium: 80, sugar: 21, gi: 61 },
+      '초콜릿': { kcal: 535, p: 7.6, c: 60, f: 30, fiber: 3.4, sodium: 24, sugar: 52, gi: 40 },
+      '다크초콜릿': { kcal: 598, p: 7.8, c: 46, f: 43, fiber: 11, sodium: 20, sugar: 24, gi: 23 },
+      '과자': { kcal: 502, p: 6, c: 65, f: 24, fiber: 2, sodium: 480, sugar: 28, gi: 65 },
+      '팝콘': { kcal: 387, p: 13, c: 78, f: 4.5, fiber: 15, sodium: 4, sugar: 0.9, gi: 65 },
+      '도넛': { kcal: 421, p: 5, c: 51, f: 23, fiber: 1.5, sodium: 326, sugar: 23, gi: 76 },
+      '케이크': { kcal: 350, p: 4.5, c: 50, f: 15, fiber: 1, sodium: 300, sugar: 30, gi: 70 },
+      '쿠키': { kcal: 502, p: 6, c: 65, f: 24, fiber: 2, sodium: 320, sugar: 32, gi: 70 },
+      '머핀': { kcal: 377, p: 6.4, c: 50, f: 17, fiber: 2.4, sodium: 380, sugar: 23, gi: 65 },
+      '크로와상': { kcal: 406, p: 8.2, c: 45, f: 21, fiber: 2.6, sodium: 467, sugar: 11, gi: 67 },
+      '베이글': { kcal: 257, p: 10, c: 52, f: 1.5, fiber: 2.2, sodium: 446, sugar: 6, gi: 72 },
+      '식빵': { kcal: 266, p: 9, c: 49, f: 3.2, fiber: 2.7, sodium: 491, sugar: 6, gi: 70 },
+      '통밀빵': { kcal: 247, p: 13, c: 41, f: 4.2, fiber: 7, sodium: 472, sugar: 5.6, gi: 51 },
+      // ── 기타 자주 보이는 음식 ──
+      '단호박': { kcal: 26, p: 1, c: 6.5, f: 0.1, fiber: 0.5, sodium: 1, sugar: 1.4, gi: 75 },
+      '감자': { kcal: 77, p: 2, c: 17, f: 0.1, fiber: 2.2, sodium: 6, sugar: 0.8, gi: 78 },
+      '시금치': { kcal: 23, p: 2.9, c: 3.6, f: 0.4, fiber: 2.2, sodium: 79, sugar: 0.4, gi: 15 },
+      '양파': { kcal: 40, p: 1.1, c: 9.3, f: 0.1, fiber: 1.7, sodium: 4, sugar: 4.2, gi: 10 },
+      '당근': { kcal: 41, p: 0.9, c: 9.6, f: 0.2, fiber: 2.8, sodium: 69, sugar: 4.7, gi: 47 },
+      '마늘': { kcal: 149, p: 6.4, c: 33, f: 0.5, fiber: 2.1, sodium: 17, sugar: 1, gi: 30 },
+      '아보카도': { kcal: 160, p: 2, c: 8.5, f: 14.7, fiber: 6.7, sodium: 7, sugar: 0.7, gi: 15 }
     };
 
     const FOOD_EMOJI = {
@@ -4278,6 +4320,14 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       document.getElementById('onboarding').style.display = 'none';
       renderAll();
       showToast(`환영합니다, ${name}님! 🎉`);
+      // 신규 사용자 자동 도움말 노출 (1회) — 기존 사용자에겐 노출 X
+      setTimeout(() => {
+        if (state.profile && !state.profile.helpSeen) {
+          state.profile.helpSeen = true;
+          save();
+          openHelpModal();
+        }
+      }, 1200);
     }
 
     // XSS 방어: innerHTML에 사용자/AI 입력을 삽입할 때 사용. textContent 가능하면 그쪽 우선.
@@ -6385,10 +6435,43 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
     }
 
     function renderInventory() {
-      let items = state.inventory.filter(i => !i.consumed);
+      // 만료 대시보드 — 재고 전체에서 만료/임박 카운트 (탭 필터와 무관)
+      const allActive = state.inventory.filter(i => !i.consumed);
+      const expired = allActive.filter(i => i.expiry && daysUntil(i.expiry) < 0);
+      const within3 = allActive.filter(i => i.expiry && daysUntil(i.expiry) >= 0 && daysUntil(i.expiry) <= 3);
+      const within7 = allActive.filter(i => i.expiry && daysUntil(i.expiry) > 3 && daysUntil(i.expiry) <= 7);
+      const dashEl = document.getElementById('expiryDashboard');
+      if (dashEl) {
+        if (expired.length === 0 && within3.length === 0 && within7.length === 0) {
+          dashEl.innerHTML = '';
+        } else {
+          const card = (count, label, color, bg, action) => count > 0 ? `
+            <button type="button" onclick="${action}"
+              style="flex:1; padding:10px 8px; background:${bg}; border:1px solid ${color}33; border-radius:10px; cursor:pointer; text-align:center; color:var(--text);">
+              <div style="font-size:18px; font-weight:800; color:${color};">${count}</div>
+              <div style="font-size:10.5px; color:var(--muted); margin-top:2px;">${label}</div>
+            </button>
+          ` : '';
+          dashEl.innerHTML = `
+            <div style="display:flex; gap:6px; margin-bottom:10px;">
+              ${card(expired.length, '🚨 만료', '#ef4444', 'rgba(239,68,68,.08)', "setInventoryTab('expiring')")}
+              ${card(within3.length, '⚠️ 3일 이내', '#f59e0b', 'rgba(245,158,11,.08)', "setInventoryTab('expiring')")}
+              ${card(within7.length, '📅 7일 이내', '#3b82f6', 'rgba(59,130,246,.08)', "setInventoryTab('expiring')")}
+            </div>
+            ${(expired.length + within3.length) > 0 ? `
+              <div style="margin-bottom:10px; padding:8px 10px; background:rgba(16,185,129,.08); border-left:3px solid #10b981; border-radius:6px; font-size:11.5px; color:#6ee7b7;">
+                💡 만료 임박 활용 레시피가 있어요 — <span onclick="goTo('recipes'); setRecipeTab('expire')" style="text-decoration:underline; cursor:pointer;">레시피 보기 →</span>
+              </div>
+            ` : ''}
+          `;
+        }
+      }
+
+      let items = allActive;
       if (invTab === 'fridge') items = items.filter(i => ['fridge','veg_drawer'].includes(i.location));
       else if (invTab === 'freezer') items = items.filter(i => i.location === 'freezer');
       else if (invTab === 'pantry') items = items.filter(i => ['pantry','spice','counter'].includes(i.location));
+      else if (invTab === 'expiring') items = items.filter(i => i.expiry && daysUntil(i.expiry) <= 7);
 
       items.sort((a,b) => {
         if (!a.expiry) return 1;
@@ -10336,6 +10419,51 @@ JSON 형식:
 
     // ============== MODAL ==============
     let __lastFocusedBeforeModal = null;
+    // ─── 도움말·사용 가이드 모달 ───
+    function openHelpModal() {
+      const lang = getLang();
+      const isEn = lang === 'en';
+      const m = document.getElementById('modalContent');
+      const sections = isEn ? [
+        { icon: '📸', title: 'Analyze Meals', body: 'Take a photo or use voice — AI estimates nutrition. You can correct it (✏️ Fix) and the app learns your portion preferences.' },
+        { icon: '🧊', title: 'Fridge Inventory', body: 'Use 📸 Scan with multiple photos to capture different fridge sections. Expiry dashboard highlights items to use soon.' },
+        { icon: '🛒', title: 'Smart Shopping', body: 'Auto-grouped by store aisle (vegetables → fruits → protein → grains → dairy → condiments). Voice input also supported.' },
+        { icon: '👩‍🍳', title: 'Recipes (80)', body: 'Personalized by your nutrition gaps, allergies, expiring items. Search by name/ingredient/time. ⭐ rate to learn your taste.' },
+        { icon: '❤️', title: 'Health & Goals', body: 'Log weight, blood sugar, exercise. Set targets — charts show progress and alerts when off-track.' },
+        { icon: '⌨️', title: 'Keyboard Shortcuts', body: '1~5 to switch tabs · R = report · P = profile · / = recipe search · Esc = close modal' }
+      ] : [
+        { icon: '📸', title: '음식 분석', body: '사진 촬영 또는 음성으로 입력 — AI가 영양을 추정합니다. ✏️ 수정으로 보정하면 다음 분석에 자동 반영(학습)됩니다.' },
+        { icon: '🧊', title: '냉장고 재고', body: '📸 스캔에서 여러 장의 사진을 추가하면 다른 구역도 통합 분석합니다. 만료 대시보드로 사용해야 할 재료를 한눈에 확인.' },
+        { icon: '🛒', title: '스마트 장보기', body: '마트 동선 순서로 자동 그룹화 (채소 → 과일 → 단백질 → 곡류 → 유제품 → 양념). 음성 입력도 지원.' },
+        { icon: '👩‍🍳', title: '레시피 80개', body: '영양 부족·알레르기·만료 임박을 반영한 개인화 추천. 이름/재료/시간으로 검색. ⭐ 평가로 추천이 학습됩니다.' },
+        { icon: '❤️', title: '건강·목표', body: '체중·혈당·운동을 기록하고 목표를 설정하세요. 차트가 진행을 보여주고 추세가 벗어나면 알림이 옵니다.' },
+        { icon: '⌨️', title: '키보드 단축키', body: '1~5: 탭 전환 · R: 리포트 · P: 프로필 · /: 레시피 검색 · Esc: 모달 닫기' }
+      ];
+      m.innerHTML = `
+        <div class="modal-handle"></div>
+        <div class="modal-title">${isEn ? '❓ How to use SmartCon' : '❓ 스마트콘 사용 가이드'}</div>
+        <div style="display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow-y:auto; margin:0 -4px; padding:0 4px;">
+          ${sections.map(s => `
+            <div style="display:flex; gap:10px; padding:10px; background:rgba(0,0,0,.2); border-radius:10px;">
+              <div style="font-size:22px; flex-shrink:0;">${s.icon}</div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:13px; font-weight:700; color:var(--text); margin-bottom:3px;">${escapeHtml(s.title)}</div>
+                <div style="font-size:11.5px; color:var(--muted); line-height:1.55;">${escapeHtml(s.body)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="margin-top:14px; padding:10px 12px; background:rgba(245,158,11,.06); border-left:3px solid #f59e0b; border-radius:6px; font-size:10.5px; color:#fcd34d; line-height:1.65;">
+          ${isEn
+            ? '⚠️ All nutrition·health info is general guidance based on KDA/KSH/KSoLA/NIH/MFDS. Not medical advice. Consult professionals for medical decisions.'
+            : '⚠️ 모든 영양·건강 정보는 KDA·KSH·KSoLA·NIH·식약처 등 일반 가이드라인 기반이며 의학적 진단·처방을 대체하지 않습니다. 의료 결정은 의사·약사·영양사 상담 필수.'}
+        </div>
+        <div style="height:10px"></div>
+        <button type="button" class="btn btn-primary" onclick="closeModal()">${isEn ? 'Got it' : '확인'}</button>
+      `;
+      openModal();
+    }
+
     function openModal() {
       const bd = document.getElementById('modalBackdrop');
       bd.classList.add('active');
