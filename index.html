@@ -293,6 +293,8 @@
       border-radius: 8px; cursor: pointer; color: var(--muted); font-weight: 600;
     }
     .tab.active { background: var(--bg-3); color: var(--text); }
+    /* 스크린리더 전용 (시각적으로 숨김) */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
     /* INPUTS */
     input, select, textarea {
@@ -1043,7 +1045,23 @@
   <!-- RECIPES -->
   <section class="screen" id="screen-recipes" aria-label="레시피">
     <h2 style="font-size:22px; font-weight:800; margin-bottom:4px;">👩‍🍳 레시피</h2>
-    <p style="color:var(--muted); font-size:13px; margin-bottom:16px;">지금 있는 재료로 뭐 만들지?</p>
+    <p style="color:var(--muted); font-size:13px; margin-bottom:12px;">지금 있는 재료로 뭐 만들지?</p>
+
+    <!-- 검색창 (이름·재료·조리법·태그·출처 모두 매칭) -->
+    <div style="position:relative; margin-bottom:10px;">
+      <label for="recipeSearchInput" class="sr-only">레시피 검색</label>
+      <input type="search" id="recipeSearchInput"
+        placeholder="🔎 이름·재료·조리법으로 검색 (예: 닭가슴살, 저염, 15분)"
+        aria-label="레시피 검색"
+        style="width:100%; padding:10px 36px 10px 14px; background:var(--bg-2); border:1px solid rgba(255,255,255,.08); border-radius:10px; color:var(--text); font-size:13px;"
+        oninput="onRecipeSearchInput(this.value)" />
+      <button type="button" id="recipeSearchClear"
+        onclick="onRecipeSearchInput('', true)" aria-label="검색어 지우기"
+        style="display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%); width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,.08); color:var(--muted); border:none; cursor:pointer; font-size:14px;">×</button>
+    </div>
+
+    <!-- 빠른 필터 칩 (재료·시간·난이도) -->
+    <div id="recipeQuickFilters" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;"></div>
 
     <div class="tabs">
       <div class="tab active" data-filter="all" onclick="setRecipeTab('all')">전체</div>
@@ -7161,6 +7179,29 @@ JSON 형식:
 
     // ============== RECIPES ==============
     let recipeTab = 'all';
+    let recipeSearchQuery = '';
+    let recipeQuickFilter = '';   // '' | 'time-quick' | 'time-easy' | 'low-cal' | 'high-protein'
+
+    // 검색어 입력 (debounce 적용)
+    let __recipeSearchTimer = null;
+    function onRecipeSearchInput(value, immediate) {
+      const input = document.getElementById('recipeSearchInput');
+      const clearBtn = document.getElementById('recipeSearchClear');
+      if (immediate && input) input.value = '';
+      const trimmed = String(value || '').trim().toLowerCase();
+      if (clearBtn) clearBtn.style.display = trimmed ? 'block' : 'none';
+      if (__recipeSearchTimer) clearTimeout(__recipeSearchTimer);
+      __recipeSearchTimer = setTimeout(() => {
+        recipeSearchQuery = trimmed;
+        renderRecipes();
+      }, immediate ? 0 : 200);
+    }
+
+    function setRecipeQuickFilter(f) {
+      recipeQuickFilter = recipeQuickFilter === f ? '' : f;
+      renderRecipes();
+    }
+
     function setRecipeTab(f) {
       recipeTab = f;
       document.querySelectorAll('#screen-recipes .tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
@@ -7444,6 +7485,49 @@ JSON 형식:
         recipes = recipes.filter(r => (r.goals || []).includes(ctx.goal) || (r.goals || []).includes('general'));
       }
 
+      // 검색어 필터 (이름·재료·조리법·태그·출처 모두 매칭)
+      if (recipeSearchQuery) {
+        const q = recipeSearchQuery;
+        recipes = recipes.filter(r => {
+          const haystack = [
+            r.title, r.difficulty, r.servingNote, r.season, r.source,
+            ...(r.ingredients || []),
+            ...(r.steps || []),
+            ...(r.tips || []),
+            ...(r.goals || []).map(goalLabel),
+            ...(r.allergens || []),
+            r.nutrition && r.nutrition.kcal != null ? `${r.nutrition.kcal}kcal` : ''
+          ].filter(Boolean).join(' ').toLowerCase();
+          return haystack.includes(q);
+        });
+      }
+
+      // 빠른 필터 칩
+      if (recipeQuickFilter === 'time-quick') recipes = recipes.filter(r => r.time <= 15);
+      else if (recipeQuickFilter === 'time-easy') recipes = recipes.filter(r => r.difficulty === '쉬움');
+      else if (recipeQuickFilter === 'low-cal') recipes = recipes.filter(r => r.nutrition && r.nutrition.kcal <= 300);
+      else if (recipeQuickFilter === 'high-protein') recipes = recipes.filter(r => r.nutrition && r.nutrition.p >= 20);
+
+      // 빠른 필터 칩 UI 갱신
+      const qfWrap = document.getElementById('recipeQuickFilters');
+      if (qfWrap) {
+        const chips = [
+          { id: 'time-quick', label: '⏱ 15분 이내' },
+          { id: 'time-easy', label: '🌱 쉬움' },
+          { id: 'low-cal', label: '🪶 300kcal 이하' },
+          { id: 'high-protein', label: '💪 단백질 20g+' }
+        ];
+        qfWrap.innerHTML = chips.map(c => {
+          const on = recipeQuickFilter === c.id;
+          return `<button type="button" class="chip" onclick="setRecipeQuickFilter(${escapeJsAttr(c.id)})"
+            style="cursor:pointer; padding:6px 10px; font-size:11.5px; border:1px solid ${on ? 'rgba(16,185,129,.5)' : 'rgba(255,255,255,.1)'};
+            background:${on ? 'rgba(16,185,129,.18)' : 'rgba(255,255,255,.04)'};
+            color:${on ? '#6ee7b7' : 'var(--text)'}; font-weight:${on ? '700' : '500'};">
+            ${escapeHtml(c.label)}
+          </button>`;
+        }).join('');
+      }
+
       const list = document.getElementById('recipeList');
 
       // 데이터 미입력 안내 배너 (탭과 무관하게 화면 상단에 항상 노출)
@@ -7470,7 +7554,9 @@ JSON 형식:
         const allergyHint = ctx.allergies && ctx.allergies.size > 0
           ? `<div style="font-size:11px; color:var(--muted); margin-top:6px;">알레르기 등록: ${[...ctx.allergies].join(', ')} — 해당 알레르겐 포함 레시피는 자동 제외됩니다</div>`
           : '';
-        list.innerHTML = banner + `<div class="empty"><span class="icon">🍳</span><div class="text">조건에 맞는 레시피가 없어요</div>${allergyHint}</div>`;
+        const searchHint = recipeSearchQuery
+          ? `<div style="font-size:11.5px; color:var(--muted); margin-top:6px;">"${escapeHtml(recipeSearchQuery)}" 검색 결과 없음 — 검색어를 짧게 줄이거나 필터를 해제해보세요</div>` : '';
+        list.innerHTML = banner + `<div class="empty"><span class="icon">🍳</span><div class="text">조건에 맞는 레시피가 없어요</div>${searchHint}${allergyHint}</div>`;
         return;
       }
       list.innerHTML = banner + recipes.map(r => {
