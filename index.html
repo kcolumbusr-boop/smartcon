@@ -1204,8 +1204,11 @@
       </div>
       <div class="list-item">
         <div class="list-icon">🔔</div>
-        <div class="list-main"><div class="list-title">알림 설정</div><div class="list-sub">식사 시간·만료 임박</div></div>
-        <button class="btn btn-ghost btn-small" onclick="requestNotification()">켜기</button>
+        <div class="list-main">
+          <div class="list-title">알림</div>
+          <div class="list-sub" id="notifStatusText">식사 시간·만료 임박 리마인더</div>
+        </div>
+        <button class="btn btn-ghost btn-small" id="notifToggleBtn" onclick="toggleNotifications()">설정</button>
       </div>
     </div>
 
@@ -8303,6 +8306,8 @@ JSON 형식:
       renderAllergyChips();
       // 약물 카테고리 칩 (Pro 기능)
       renderMedicationChips();
+      // 알림 설정 라벨 동기화
+      renderNotifSettingsLabel();
       // Auto-run storage diagnostics
       runDiagnostics();
     }
@@ -8844,9 +8849,134 @@ JSON 형식:
       if (!('Notification' in window)) { showToast('이 브라우저는 알림 미지원'); return; }
       const p = await Notification.requestPermission();
       if (p === 'granted') {
-        new Notification('스마트콘 알림 활성화', { body: '만료 임박 재료와 식사 시간을 알려드릴게요 🥗' });
-        state.settings.notifications = true; save();
+        notify('스마트콘 알림 활성화', '만료 임박 재료와 식사 시간을 알려드릴게요 🥗');
+        if (!state.settings) state.settings = {};
+        state.settings.notifications = true;
+        save();
+        renderNotifSettingsLabel();
         showToast('알림이 켜졌어요');
+        // 즉시 한 번 만료 임박 체크
+        runNotificationChecks();
+      } else {
+        showToast('알림 권한이 거부되었어요');
+      }
+    }
+
+    // 알림 토글 — 권한 상태별 다른 동작
+    async function toggleNotifications() {
+      if (!('Notification' in window)) { showToast('이 브라우저는 알림 미지원'); return; }
+      const perm = Notification.permission;
+      if (perm === 'denied') {
+        showToast('브라우저 설정에서 알림 권한을 허용해주세요');
+        return;
+      }
+      if (!state.settings.notifications) {
+        // 켜기 — 권한 없으면 요청
+        if (perm === 'default') {
+          await requestNotification();
+        } else {
+          state.settings.notifications = true;
+          save();
+          renderNotifSettingsLabel();
+          showToast('🔔 알림이 켜졌어요');
+          runNotificationChecks();
+        }
+      } else {
+        // 끄기
+        state.settings.notifications = false;
+        save();
+        renderNotifSettingsLabel();
+        showToast('🔕 알림이 꺼졌어요');
+      }
+    }
+
+    function renderNotifSettingsLabel() {
+      const txt = document.getElementById('notifStatusText');
+      const btn = document.getElementById('notifToggleBtn');
+      if (!txt || !btn) return;
+      const supported = 'Notification' in window;
+      const perm = supported ? Notification.permission : 'unsupported';
+      const on = !!(state.settings && state.settings.notifications) && perm === 'granted';
+      if (!supported) {
+        txt.textContent = '이 브라우저는 알림 미지원';
+        btn.textContent = '미지원';
+        btn.disabled = true;
+      } else if (perm === 'denied') {
+        txt.textContent = '브라우저에서 차단됨 — 설정에서 허용 필요';
+        btn.textContent = '차단됨';
+      } else if (on) {
+        txt.textContent = '✓ 켜짐 — 식사 시간·만료 임박 리마인더';
+        btn.textContent = '끄기';
+      } else {
+        txt.textContent = '식사 시간·만료 임박 리마인더';
+        btn.textContent = '켜기';
+      }
+    }
+
+    // 알림 통합 헬퍼 — 권한 있으면 시스템 알림, 아니면 화면 토스트
+    function notify(title, body, opts) {
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, Object.assign({ body, icon: './icon-192.png', tag: 'smartcon' }, opts || {}));
+          return true;
+        }
+      } catch (e) { /* fallback below */ }
+      showToast(`🔔 ${title} — ${body}`);
+      return false;
+    }
+
+    // ─── 알림 체크 (앱 활성 상태에서만 동작) ───
+    // 정적 호스팅(GitHub Pages)이라 Push API 불가 — 앱이 열려 있을 때 주기적 체크
+    function runNotificationChecks() {
+      if (!state.profile || !state.settings || !state.settings.notifications) return;
+      checkExpiringInventoryNotifications();
+      checkMealTimeReminder();
+    }
+
+    // 만료 3일 이내 재료가 있으면 하루 1회 알림 (lastShownDate 기록으로 중복 방지)
+    function checkExpiringInventoryNotifications() {
+      const todayKey = localDateKey();
+      const lastShown = state.settings.__expireNotifLast;
+      if (lastShown === todayKey) return;
+      const expiring = (state.inventory || []).filter(i => {
+        if (i.consumed || !i.expiry) return false;
+        const d = daysUntil(i.expiry);
+        return d >= 0 && d <= 3;
+      });
+      if (expiring.length === 0) return;
+      const names = expiring.slice(0, 3).map(i => i.name).join(', ');
+      const more = expiring.length > 3 ? ` 외 ${expiring.length - 3}개` : '';
+      notify('🧊 유통기한 임박', `${names}${more} — 활용 레시피를 확인해보세요`);
+      state.settings.__expireNotifLast = todayKey;
+      save();
+    }
+
+    // 식사 시간 ±20분 안인데 그 끼니 기록 없으면 알림 (끼니별 1회)
+    function checkMealTimeReminder() {
+      const now = new Date();
+      const hr = now.getHours();
+      const min = now.getMinutes();
+      const totalMin = hr * 60 + min;
+      const meals = [
+        { type: 'breakfast', startMin: 8 * 60, label: '🌅 아침' },
+        { type: 'lunch', startMin: 12 * 60, label: '🌤 점심' },
+        { type: 'dinner', startMin: 18 * 60 + 30, label: '🌙 저녁' }
+      ];
+      const todayKey = localDateKey();
+      const todayMeals = (state.meals || []).filter(m => localDateKey(m.consumed_at) === todayKey);
+
+      for (const meal of meals) {
+        // 시간 윈도우: 시작 시각 ~ +20분
+        if (totalMin < meal.startMin || totalMin > meal.startMin + 20) continue;
+        // 이미 그 끼니를 기록했으면 스킵
+        if (todayMeals.some(m => m.meal_type === meal.type)) continue;
+        // 오늘 이 끼니 알림을 이미 보냈으면 스킵
+        const flagKey = '__mealNotif_' + meal.type + '_' + todayKey;
+        if (state.settings[flagKey]) continue;
+        notify(`${meal.label} 식사 시간`, '사진 한 장으로 영양을 분석해드려요 📸');
+        state.settings[flagKey] = 1;
+        save();
+        break;   // 한 번에 하나만
       }
     }
 
@@ -9899,6 +10029,14 @@ JSON 형식:
       setInterval(() => {
         if (state.profile) idbSave(stateForStorage()).catch(() => {});
       }, 30000);
+
+      // 5. 알림 체크 — 진입 시 1회 + 5분마다 (앱이 열려 있을 때만 동작)
+      runNotificationChecks();
+      setInterval(runNotificationChecks, 5 * 60 * 1000);
+      // 탭이 다시 보일 때도 체크 (백그라운드에서 시간이 지났을 수 있음)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') runNotificationChecks();
+      });
 
       // 5. Save when tab becomes hidden (most reliable moment to persist)
       document.addEventListener('visibilitychange', () => {
