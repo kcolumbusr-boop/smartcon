@@ -2527,6 +2527,529 @@
         tips: ['귀리 베타글루칸 + 단호박 베타카로틴', '식이섬유 8g — 포만감 우수'],
         caution: ['당뇨자: 꿀 생략 (KDA)'],
         season: '가을·겨울', source: 'KSoLA·NIH-ODS'
+      },
+
+      // ── 3차 30개 (r51~r80) — 한식·국제·다이어트·간식 다양성 추가 ──
+      {
+        id: 'r51', title: '시금치 된장국', emoji: '🥣', time: 20, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['시금치','된장','두부','대파','마늘','다시마'],
+        nutrition: { kcal: 90, p: 7, c: 8, f: 3, fiber: 3, sodium: 720, sugar: 2, gi: 35 },
+        mealTime: ['breakfast','lunch','dinner'], goals: ['general','hypertension'],
+        allergens: ['대두'],
+        steps: [
+          '다시마 육수 2컵 우리기 (15분)',
+          '된장 1작은술을 육수에 풀기',
+          '시금치 한 줌을 한입 크기로 썰어 추가',
+          '두부 1/4모를 깍둑썰기 추가',
+          '약불로 5분 끓임',
+          '마늘·대파로 마무리'
+        ],
+        tips: ['시금치 비타민K + 된장 발효 영양', '국물보다 건더기 위주 섭취 시 나트륨 절감'],
+        caution: ['와파린 복용자: 비타민K 다량 주의 (FDA)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r52', title: '콩나물국밥', emoji: '🍲', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['콩나물','밥','계란','대파','새우젓','김','고춧가루'],
+        nutrition: { kcal: 320, p: 14, c: 50, f: 6, fiber: 3, sodium: 780, sugar: 2, gi: 65 },
+        mealTime: ['breakfast','lunch'], goals: ['general'],
+        allergens: ['대두','갑각류','계란'],
+        steps: [
+          '콩나물 200g을 찬물에 헹구기',
+          '뚝배기에 콩나물·물 2컵·새우젓 1/2작은술',
+          '뚜껑 덮어 강불 5분 (열면 비린내)',
+          '뚜껑 열어 5분 더 끓임',
+          '밥 한 공기 추가 후 계란 풀어 익힘',
+          '김·대파·고춧가루 마무리'
+        ],
+        tips: ['콩나물 아스파라긴이 알코올 대사 보조 (해장)', '국물 양 조절로 나트륨 관리'],
+        caution: [],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r53', title: '만두국', emoji: '🍲', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['만두','소고기','계란','김','대파','국간장','마늘'],
+        nutrition: { kcal: 380, p: 18, c: 42, f: 14, fiber: 3, sodium: 920, sugar: 3, gi: 60 },
+        mealTime: ['lunch','dinner'], goals: ['general','muscle'],
+        allergens: ['글루텐','대두','계란'],
+        steps: [
+          '소고기 50g을 참기름에 1분 볶음',
+          '물 2컵 부어 끓이고 거품 제거',
+          '만두 5~6개 넣고 떠오를 때까지 5분',
+          '계란 풀어 둘러 익히고 국간장으로 간',
+          '김·대파 토핑'
+        ],
+        tips: ['만두 자체에 단백질·탄수 균형, 채소 만두로 식이섬유↑', '국물보다 만두 위주 섭취'],
+        caution: [],
+        season: '겨울', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r54', title: '황태해장국', emoji: '🥣', time: 30, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['황태','두부','계란','콩나물','대파','마늘','참기름'],
+        nutrition: { kcal: 220, p: 24, c: 8, f: 9, fiber: 2, sodium: 780, sugar: 1, gi: 25 },
+        mealTime: ['breakfast','lunch'], goals: ['muscle','general'],
+        allergens: ['대두','계란','생선'],
+        steps: [
+          '황태 50g을 찬물에 30분 불리고 찢기',
+          '냄비에 참기름·다진마늘·황태 2분 볶음',
+          '물 2.5컵 부어 강불로 끓임',
+          '약불로 줄여 15분',
+          '두부·콩나물 추가 5분',
+          '계란 풀어 둘러 익힘, 대파 마무리'
+        ],
+        tips: ['황태 고단백·저지방 — 회복식·해장식 적합', '간장은 마지막에 소량'],
+        caution: [],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r55', title: '두부 조림', emoji: '🍲', time: 20, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['두부','간장','마늘','고춧가루','대파','참기름','올리고당'],
+        nutrition: { kcal: 180, p: 14, c: 8, f: 11, fiber: 1, sodium: 480, sugar: 4, gi: 25 },
+        mealTime: ['lunch','dinner','breakfast'], goals: ['muscle','general','cholesterol'],
+        allergens: ['대두'],
+        steps: [
+          '두부 1모를 1cm 두께로 썰어 키친타월로 물기 제거',
+          '팬에 참기름 1작은술, 두부 양면 노릇하게 굽기',
+          '양념: 간장 1큰술·다진마늘·고춧가루·올리고당 1작은술·물 2큰술',
+          '두부에 양념 부어 자작하게 졸이기 (5분)',
+          '대파 마무리'
+        ],
+        tips: ['두부 식물성 단백질 + 양념 적정량', '올리고당 양 줄여 당 절감'],
+        caution: [],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r56', title: '감자조림', emoji: '🥔', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['감자','당근','간장','올리고당','참기름','참깨'],
+        nutrition: { kcal: 180, p: 3, c: 38, f: 3, fiber: 3, sodium: 380, sugar: 8, gi: 65 },
+        mealTime: ['lunch','dinner'], goals: ['general'],
+        allergens: ['대두'],
+        steps: [
+          '감자 2개를 한입 크기로 깍둑썰고 찬물에 헹궈 전분 제거',
+          '당근 1/2개 깍둑썰기',
+          '냄비에 참기름·감자·당근 1분 볶음',
+          '물 1컵·간장 1큰술·올리고당 1큰술 추가',
+          '약불로 15~18분 졸이기',
+          '참깨 마무리'
+        ],
+        tips: ['감자 칼륨이 나트륨 배설 보조', '당류 절제 시 올리고당 절반'],
+        caution: ['고혈압 약 복용자: 칼륨 다량 주의 (KSH)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r57', title: '고등어조림', emoji: '🐟', time: 30, difficulty: '보통',
+        servingNote: '1인분 기준', ingredients: ['고등어','무','양파','고추장','간장','마늘','대파'],
+        nutrition: { kcal: 320, p: 24, c: 14, f: 18, fiber: 3, sodium: 920, sugar: 5, gi: 50 },
+        mealTime: ['lunch','dinner'], goals: ['cholesterol','muscle'],
+        allergens: ['생선','대두'],
+        steps: [
+          '고등어 2토막을 깨끗이 씻고 키친타월로 물기 제거',
+          '무를 두툼하게 썰어 냄비 바닥에 깔기',
+          '양념: 고추장 1큰술·간장 1큰술·다진마늘·물 1컵',
+          '고등어 위에 양념 끼얹고 강불 5분',
+          '약불로 25분 졸이기',
+          '양파·대파 마지막에 추가'
+        ],
+        tips: ['고등어 EPA/DHA + 무 식이섬유', '국물보다 살·무 위주 섭취 시 나트륨 절감'],
+        caution: ['통풍자: 주 2회 이내 권장'],
+        season: '가을·겨울', source: 'MFDS·KSoLA'
+      },
+      {
+        id: 'r58', title: '명태구이', emoji: '🐟', time: 15, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['명태','소금','후추','레몬','쪽파'],
+        nutrition: { kcal: 180, p: 28, c: 0, f: 8, fiber: 0, sodium: 280, sugar: 0, gi: 0 },
+        mealTime: ['lunch','dinner'], goals: ['diet','muscle','diabetes','cholesterol'],
+        allergens: ['생선'],
+        steps: [
+          '명태 1마리(150g)에 0.5g 소금·후추 가볍게',
+          '예열된 그릴 또는 에어프라이 200℃ 10분',
+          '레몬즙 뿌리고 쪽파 송송 토핑'
+        ],
+        tips: ['저지방 단백질 — 다이어트·당뇨 친화', '레몬 비타민C가 산화 방지'],
+        caution: [],
+        season: '겨울', source: 'MFDS'
+      },
+      {
+        id: 'r59', title: '김치전', emoji: '🥞', time: 15, difficulty: '쉬움',
+        servingNote: '1장 기준', ingredients: ['김치','부침가루','계란','대파','참기름'],
+        nutrition: { kcal: 320, p: 9, c: 38, f: 14, fiber: 2, sodium: 820, sugar: 3, gi: 60 },
+        mealTime: ['lunch','dinner','snack'], goals: ['general'],
+        allergens: ['글루텐','계란','대두'],
+        steps: [
+          '김치 1/4쪽을 잘게 썰기',
+          '부침가루 1/2컵·물 1/2컵·계란 1개를 섞어 반죽',
+          '김치·대파 추가해 가볍게 섞기',
+          '팬에 참기름 1작은술 두르고 약중불',
+          '한 국자씩 노릇하게 양면 굽기'
+        ],
+        tips: ['김치 발효산 + 통밀 부침가루로 GI↓', '신김치 사용 시 헹궈 염도 조절'],
+        caution: ['고혈압자: 김치 양 줄이고 헹궈 사용 (KSH)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r60', title: '호박전', emoji: '🥞', time: 12, difficulty: '쉬움',
+        servingNote: '1장 기준', ingredients: ['애호박','부침가루','계란','대파','소금','참기름'],
+        nutrition: { kcal: 180, p: 6, c: 22, f: 7, fiber: 2, sodium: 320, sugar: 3, gi: 50 },
+        mealTime: ['lunch','dinner','snack'], goals: ['diet','general'],
+        allergens: ['글루텐','계란','대두'],
+        steps: [
+          '애호박 1/2개를 0.5cm 두께로 썰기',
+          '소금 약간 뿌려 5분 두고 물기 짜기',
+          '부침가루 묻히고 풀어둔 계란에 담그기',
+          '팬에 참기름, 약중불로 양면 2분씩 굽기',
+          '대파 송송 토핑'
+        ],
+        tips: ['저칼로리·고섬유 — 다이어트 친화', '간장보다 양념간장 적게 찍기'],
+        caution: [],
+        season: '여름', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r61', title: '카레라이스', emoji: '🍛', time: 30, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['현미밥','카레가루','감자','당근','양파','닭가슴살','우유'],
+        nutrition: { kcal: 480, p: 22, c: 70, f: 12, fiber: 6, sodium: 720, sugar: 8, gi: 55 },
+        mealTime: ['lunch','dinner'], goals: ['general','muscle'],
+        allergens: ['우유','글루텐'],
+        steps: [
+          '닭가슴살 100g·감자·당근·양파를 한입 크기로 썰기',
+          '팬에 닭가슴살 강불 3분 볶음',
+          '채소 추가 5분 볶음',
+          '물 2컵 부어 약불 10분',
+          '카레가루 + 우유 약간으로 농도 조절',
+          '현미밥 위에 끼얹어 완성'
+        ],
+        tips: ['카레의 강황(커큐민) 항염 보조', '현미밥으로 GI↓'],
+        caution: ['항응고제 복용자: 강황 다량 주의 (FDA)'],
+        season: 'all', source: 'MFDS·Linus Pauling'
+      },
+      {
+        id: 'r62', title: '오므라이스', emoji: '🍳', time: 20, difficulty: '보통',
+        servingNote: '1인분 기준', ingredients: ['현미밥','계란','양파','당근','닭가슴살','케첩','버터'],
+        nutrition: { kcal: 520, p: 22, c: 60, f: 18, fiber: 4, sodium: 680, sugar: 8, gi: 60 },
+        mealTime: ['lunch','dinner'], goals: ['general','muscle'],
+        allergens: ['계란','우유','글루텐'],
+        steps: [
+          '닭가슴살·양파·당근을 잘게 다지기',
+          '팬에 버터 1작은술, 다진재료 강불 3분 볶음',
+          '현미밥 한 공기 추가, 케첩 1큰술로 볶음',
+          '계란 2개 풀어 약불로 얇은 지단 만들기',
+          '볶음밥을 지단 위에 얹어 모양 잡기',
+          '케첩으로 마무리'
+        ],
+        tips: ['통케첩보다 무첨가 토마토소스 사용 시 당류 절감'],
+        caution: ['당뇨자: 케첩 양 줄이고 신선 토마토 활용 (KDA)'],
+        season: 'all', source: 'MFDS'
+      },
+      {
+        id: 'r63', title: '샥슈카', emoji: '🍳', time: 20, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['계란','토마토','양파','마늘','피망','파프리카','올리브유','파슬리'],
+        nutrition: { kcal: 280, p: 16, c: 18, f: 16, fiber: 5, sodium: 380, sugar: 8, gi: 35 },
+        mealTime: ['breakfast','lunch'], goals: ['cholesterol','diet','general'],
+        allergens: ['계란'],
+        steps: [
+          '양파·마늘 다지고 피망·파프리카 한입 크기 썰기',
+          '팬에 올리브유 1큰술·양파·마늘 3분 볶음',
+          '피망·파프리카 추가 3분',
+          '토마토 다져 넣고 5분 졸이기',
+          '계란 2개를 그대로 깨 넣고 뚜껑 덮어 약불 5분',
+          '파슬리 마무리'
+        ],
+        tips: ['토마토 라이코펜 + 올리브유 흡수↑ (NIH-ODS)', '식이섬유 5g 풍부'],
+        caution: [],
+        season: 'all', source: 'NIH-ODS·KSoLA'
+      },
+      {
+        id: 'r64', title: '치아씨드 푸딩', emoji: '🥣', time: 5, difficulty: '쉬움',
+        servingNote: '1인분 기준 (4시간 냉장 필요)', ingredients: ['치아씨드','우유','꿀','블루베리','바나나'],
+        nutrition: { kcal: 240, p: 8, c: 32, f: 10, fiber: 9, sodium: 60, sugar: 18, gi: 40 },
+        mealTime: ['breakfast','snack'], goals: ['cholesterol','general','diet'],
+        allergens: ['우유'],
+        steps: [
+          '치아씨드 3큰술·우유 1컵·꿀 1/2큰술을 컵에 섞기',
+          '5분 동안 자주 저어 덩어리 풀기',
+          '뚜껑 덮어 냉장 4시간 이상 (밤새 OK)',
+          '먹기 전 블루베리·바나나 슬라이스 토핑'
+        ],
+        tips: ['치아씨드 ALA-오메가3 + 식이섬유 9g', '아침 미리 만들어 둠 (meal prep)'],
+        caution: ['항응고제 복용자: 오메가3 다량 주의 (FDA)'],
+        season: 'all', source: 'NIH-ODS·KSoLA'
+      },
+      {
+        id: 'r65', title: '바나나 오트밀 머핀', emoji: '🧁', time: 30, difficulty: '쉬움',
+        servingNote: '1개 기준 (6개 분량)', ingredients: ['오트밀','바나나','계란','우유','꿀','베이킹파우더','시나몬'],
+        nutrition: { kcal: 180, p: 6, c: 28, f: 5, fiber: 3, sodium: 80, sugar: 12, gi: 50 },
+        mealTime: ['breakfast','snack'], goals: ['general','cholesterol'],
+        allergens: ['계란','우유','글루텐'],
+        steps: [
+          '오트밀 2컵을 푸드프로세서로 곱게 갈기',
+          '바나나 2개 으깨 우유 1/2컵·계란 1개·꿀 2큰술과 섞기',
+          '오트가루·베이킹파우더·시나몬 추가해 반죽',
+          '머핀 컵에 2/3 채우기',
+          '180℃ 오븐 18~20분',
+          '식혀서 보관 (냉동 가능)'
+        ],
+        tips: ['통귀리 기반 — 정제 밀가루 머핀 대비 식이섬유↑·GI↓', '꿀 양 줄여 당류 절감'],
+        caution: [],
+        season: 'all', source: 'KSoLA·NIH-ODS'
+      },
+      {
+        id: 'r66', title: '두부 김치 볶음', emoji: '🥘', time: 12, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['두부','김치','대파','참기름','마늘','참깨'],
+        nutrition: { kcal: 220, p: 16, c: 8, f: 12, fiber: 3, sodium: 720, sugar: 3, gi: 25 },
+        mealTime: ['lunch','dinner'], goals: ['diet','muscle','general'],
+        allergens: ['대두'],
+        steps: [
+          '두부 1/2모를 깍둑썰어 키친타월로 물기 제거',
+          '팬에 참기름·다진마늘 향 내기',
+          '김치 1/4쪽을 잘게 썰어 추가 3분 볶음',
+          '두부 추가 강불 4분 볶음',
+          '대파·참깨 마무리'
+        ],
+        tips: ['두부 식물성 단백질 + 김치 발효 시너지', '신김치 사용 시 헹궈 염도 조절'],
+        caution: ['고혈압자: 김치 양 줄이기 (KSH)'],
+        season: 'all', source: 'MFDS'
+      },
+      {
+        id: 'r67', title: '퀴노아 샐러드', emoji: '🥗', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['퀴노아','오이','토마토','올리브','페타치즈','레몬','올리브유','파슬리'],
+        nutrition: { kcal: 380, p: 12, c: 42, f: 18, fiber: 6, sodium: 480, sugar: 4, gi: 35 },
+        mealTime: ['lunch','dinner'], goals: ['diet','cholesterol','general'],
+        allergens: ['우유'],
+        steps: [
+          '퀴노아 1/2컵을 찬물에 헹구고 물 1컵으로 15분 끓이기',
+          '식힌 퀴노아를 큰 그릇에 담기',
+          '오이·토마토·올리브 한입 크기로 썰어 추가',
+          '페타치즈 30g 깍둑썰어 추가',
+          '드레싱: 올리브유 1큰술 + 레몬즙 1큰술',
+          '파슬리 마무리, 차게 또는 상온으로 섭취'
+        ],
+        tips: ['퀴노아 완전단백질 (필수아미노산 9종)', '미리 만들어 두는 meal prep 적합'],
+        caution: [],
+        season: '여름', source: 'NIH-ODS·KSoLA'
+      },
+      {
+        id: 'r68', title: '후무스 보울', emoji: '🥙', time: 10, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['병아리콩','마늘','레몬','올리브유','참깨','피타브레드','오이','토마토'],
+        nutrition: { kcal: 420, p: 14, c: 50, f: 18, fiber: 10, sodium: 480, sugar: 4, gi: 40 },
+        mealTime: ['lunch','dinner','snack'], goals: ['cholesterol','diet','general'],
+        allergens: ['글루텐','대두'],
+        steps: [
+          '삶은 병아리콩 1컵·마늘 2쪽·레몬즙·올리브유 2큰술·참깨 1큰술을 블렌더에 갈기',
+          '소금 약간으로 간',
+          '그릇에 후무스 펴기',
+          '오이·토마토 슬라이스 토핑',
+          '피타브레드 한 장과 함께 섭취'
+        ],
+        tips: ['병아리콩 식물성 단백질·식이섬유 10g', '후무스 미리 만들어 냉장 3일'],
+        caution: [],
+        season: 'all', source: 'NIH-ODS·KSoLA'
+      },
+      {
+        id: 'r69', title: '토마토 가스파초', emoji: '🍅', time: 10, difficulty: '쉬움',
+        servingNote: '1인분 기준 (2시간 냉장 필요)', ingredients: ['토마토','오이','피망','마늘','올리브유','식초','빵'],
+        nutrition: { kcal: 160, p: 4, c: 18, f: 8, fiber: 4, sodium: 280, sugar: 8, gi: 35 },
+        mealTime: ['lunch','snack'], goals: ['diet','general','cholesterol'],
+        allergens: ['글루텐'],
+        steps: [
+          '토마토 4개·오이 1/2개·피망 1/2개를 한입 크기로 썰기',
+          '마늘 1쪽·빵 한 조각·올리브유 2큰술·식초 1큰술과 함께 블렌더에 갈기',
+          '소금·후추로 간',
+          '체에 걸러 부드럽게 (선택)',
+          '냉장 2시간 이상',
+          '차갑게 섭취, 토마토·오이 다이스 토핑'
+        ],
+        tips: ['토마토 라이코펜 풍부 (여름 햇볕 토마토)', '저칼로리·고수분'],
+        caution: [],
+        season: '여름', source: 'NIH-ODS'
+      },
+      {
+        id: 'r70', title: '비프 스튜', emoji: '🥘', time: 90, difficulty: '보통',
+        servingNote: '1인분 기준', ingredients: ['소고기','양파','당근','감자','마늘','토마토페이스트','월계수','후추'],
+        nutrition: { kcal: 380, p: 26, c: 28, f: 16, fiber: 5, sodium: 580, sugar: 8, gi: 50 },
+        mealTime: ['lunch','dinner'], goals: ['muscle','general'],
+        allergens: [],
+        steps: [
+          '소고기 200g을 큼직히 썰어 소금·후추·밀가루 가볍게',
+          '냄비에 올리브유, 소고기 강불 4분 시어링',
+          '양파·마늘·당근 추가 5분 볶음',
+          '토마토페이스트 1큰술·물 3컵·월계수잎 추가',
+          '약불로 60분 푹 끓임',
+          '감자 추가 후 25분 더, 농도 졸여 완성'
+        ],
+        tips: ['소고기 헴철 + 채소 비타민C로 흡수↑ (NIH-ODS)', '국물 모두 마시면 나트륨 부담'],
+        caution: ['통풍자: 적색육 절제 (FDA)'],
+        season: '가을·겨울', source: 'NIH-ODS·MFDS'
+      },
+      {
+        id: 'r71', title: '단호박 라떼', emoji: '🥛', time: 8, difficulty: '쉬움',
+        servingNote: '1잔 기준', ingredients: ['단호박','우유','시나몬','메이플시럽'],
+        nutrition: { kcal: 180, p: 8, c: 28, f: 4, fiber: 3, sodium: 80, sugar: 16, gi: 45 },
+        mealTime: ['breakfast','snack'], goals: ['general'],
+        allergens: ['우유'],
+        steps: [
+          '찐 단호박 100g을 우유 1컵과 블렌더에 갈기',
+          '냄비에 옮겨 약불로 데우기 (3분)',
+          '시나몬 한 꼬집',
+          '메이플시럽 1작은술 (선택)',
+          '컵에 따라 바로 섭취'
+        ],
+        tips: ['단호박 베타카로틴 + 우유 지방 흡수↑ (NIH-ODS)', '식이섬유 + 따뜻한 음료로 만족감'],
+        caution: ['당뇨자: 시럽 생략 (KDA)'],
+        season: '가을·겨울', source: 'NIH-ODS'
+      },
+      {
+        id: 'r72', title: '닭가슴살 김치 볶음밥', emoji: '🍚', time: 18, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['닭가슴살','현미밥','김치','계란','대파','참기름','김'],
+        nutrition: { kcal: 480, p: 28, c: 60, f: 12, fiber: 4, sodium: 820, sugar: 4, gi: 60 },
+        mealTime: ['lunch','dinner'], goals: ['muscle','general'],
+        allergens: ['계란','대두'],
+        steps: [
+          '닭가슴살 100g을 깍둑썰어 소금·후추 밑간',
+          '팬에 참기름·닭가슴살 강불 3분 볶음',
+          '김치 1/4쪽 잘게 썰어 추가 2분',
+          '식은 현미밥 추가 강불 4분 볶음',
+          '계란 1개 풀어 둘러 익힘',
+          '대파·김 토핑'
+        ],
+        tips: ['고단백 + 발효산 + 통곡 GI 완화', '식은 밥으로 보슬보슬'],
+        caution: ['고혈압자: 김치 양 줄이기 (KSH)'],
+        season: 'all', source: 'MFDS·KDA'
+      },
+      {
+        id: 'r73', title: '명란 계란말이', emoji: '🍳', time: 12, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['계란','명란','대파','참기름','소금'],
+        nutrition: { kcal: 220, p: 18, c: 1, f: 16, fiber: 0, sodium: 720, sugar: 0.5, gi: 0 },
+        mealTime: ['breakfast','lunch','dinner'], goals: ['muscle','general'],
+        allergens: ['계란','생선'],
+        steps: [
+          '계란 3개를 풀고 대파·소금 한 꼬집 추가',
+          '명란 1줄을 가운데에 길게 놓기',
+          '팬에 참기름, 약불로 계란물 1/3 부어 익기 시작하면 한쪽으로 말기',
+          '나머지 계란물도 같은 방식으로 두 번 더',
+          '한 김 식혀 1cm 두께로 썰기'
+        ],
+        tips: ['계란 + 명란 단백질 풍부', '명란이 짠 편이라 추가 소금 자제'],
+        caution: ['고혈압자: 명란 양 줄이기 (KSH)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r74', title: '잡곡밥', emoji: '🍚', time: 60, difficulty: '쉬움',
+        servingNote: '1공기 기준', ingredients: ['현미','보리','수수','콩','검은쌀'],
+        nutrition: { kcal: 230, p: 7, c: 46, f: 2, fiber: 5, sodium: 5, sugar: 1, gi: 50 },
+        mealTime: ['lunch','dinner','breakfast'], goals: ['diabetes','cholesterol','general'],
+        allergens: ['대두'],
+        steps: [
+          '현미·보리·수수·콩·검은쌀을 4:2:2:1:1로 섞고 1시간 불리기',
+          '쌀 2컵에 물 2.4컵 (불린 쌀 기준)',
+          '강불로 끓이다 끓으면 약불 12분',
+          '뜸 10분',
+          '주걱으로 가볍게 섞어 그릇에 담기'
+        ],
+        tips: ['흰쌀밥 대비 GI↓·식이섬유↑ — 당뇨·콜레스테롤 친화', '필수아미노산 보완'],
+        caution: ['신장질환자: 칼륨·인 다량 주의 (KSH)'],
+        season: 'all', source: 'KDA·MFDS'
+      },
+      {
+        id: 'r75', title: '연어 포케 볼', emoji: '🥗', time: 15, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['연어','현미밥','아보카도','오이','김','간장','참기름','참깨'],
+        nutrition: { kcal: 480, p: 28, c: 50, f: 18, fiber: 6, sodium: 480, sugar: 3, gi: 50 },
+        mealTime: ['lunch','dinner'], goals: ['cholesterol','muscle','diabetes'],
+        allergens: ['생선','대두'],
+        steps: [
+          '연어 회 100g을 한입 크기로 썰기',
+          '현미밥 한 공기를 그릇에 담기',
+          '아보카도 1/2개·오이 1/4개를 슬라이스해 토핑',
+          '연어를 위에 가지런히',
+          '간장 1작은술·참기름 1/2작은술 드리즐',
+          '김·참깨 마무리'
+        ],
+        tips: ['연어 EPA/DHA + 아보카도 단일불포화지방 (KSoLA)', '신선 회는 위생 신뢰처에서'],
+        caution: ['임산부·면역저하자: 생연어 자제 (FDA)'],
+        season: 'all', source: 'KSoLA·NIH-ODS'
+      },
+      {
+        id: 'r76', title: '닭가슴살 야채 수프', emoji: '🍲', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['닭가슴살','양파','당근','셀러리','마늘','파슬리','후추'],
+        nutrition: { kcal: 180, p: 28, c: 12, f: 4, fiber: 4, sodium: 280, sugar: 5, gi: 30 },
+        mealTime: ['lunch','dinner'], goals: ['diet','muscle','general'],
+        allergens: [],
+        steps: [
+          '닭가슴살 120g을 한입 크기로 썰기',
+          '양파·당근·셀러리를 다지기',
+          '냄비에 올리브유, 양파 3분 볶음',
+          '닭가슴살·당근·셀러리 추가 3분',
+          '물 2컵·마늘·후추 추가 약불 15분',
+          '파슬리 마무리'
+        ],
+        tips: ['저칼로리·고단백·고섬유 — 다이어트·회복식 적합', '국물 모두 섭취 OK (저나트륨)'],
+        caution: [],
+        season: '가을·겨울', source: 'NIH·MFDS'
+      },
+      {
+        id: 'r77', title: '바나나 땅콩 토스트', emoji: '🍞', time: 5, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['통밀빵','바나나','땅콩버터','시나몬','꿀'],
+        nutrition: { kcal: 320, p: 10, c: 42, f: 12, fiber: 5, sodium: 240, sugar: 18, gi: 50 },
+        mealTime: ['breakfast','snack'], goals: ['general','muscle'],
+        allergens: ['글루텐','땅콩'],
+        steps: [
+          '통밀빵 1장을 토스트',
+          '땅콩버터(무가당) 1큰술 펴 바르기',
+          '바나나 1/2개를 슬라이스해 올리기',
+          '시나몬 한 꼬집',
+          '꿀 1/2작은술 (선택)'
+        ],
+        tips: ['단백질 + 통곡 + 칼륨 — 운동 전·아침 식사', '무가당 땅콩버터로 당류 절감'],
+        caution: ['땅콩 알레르기자: 절대 섭취 금지'],
+        season: 'all', source: 'NIH-ODS·KSoLA'
+      },
+      {
+        id: 'r78', title: '닭가슴살 두부 스테이크', emoji: '🍗', time: 25, difficulty: '보통',
+        servingNote: '1인분 기준', ingredients: ['닭가슴살 다짐육','두부','계란','대파','마늘','후추','올리브유'],
+        nutrition: { kcal: 280, p: 32, c: 6, f: 14, fiber: 1, sodium: 320, sugar: 1, gi: 20 },
+        mealTime: ['lunch','dinner'], goals: ['diet','muscle','diabetes'],
+        allergens: ['대두','계란'],
+        steps: [
+          '닭가슴살 다짐육 120g·두부 50g 으깨 섞기',
+          '계란 1개·다진대파·다진마늘·후추 추가',
+          '잘 치대 동그랑땡 모양으로 빚기',
+          '팬에 올리브유 1작은술, 약중불 양면 4분씩',
+          '뚜껑 덮어 약불 2분 (속까지 익힘)'
+        ],
+        tips: ['닭가슴살 + 두부 단백질 시너지 (~32g)', '저GI·저나트륨 다이어트 친화'],
+        caution: [],
+        season: 'all', source: 'MFDS·KDA'
+      },
+      {
+        id: 'r79', title: '시리얼 베리볼', emoji: '🥣', time: 5, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['통곡 시리얼','우유','블루베리','딸기','아몬드'],
+        nutrition: { kcal: 320, p: 10, c: 50, f: 8, fiber: 7, sodium: 180, sugar: 16, gi: 50 },
+        mealTime: ['breakfast','snack'], goals: ['cholesterol','general'],
+        allergens: ['우유','글루텐','견과'],
+        steps: [
+          '통곡 시리얼 50g을 그릇에 담기',
+          '우유 200ml 부어주기',
+          '블루베리 한 줌·딸기 5개 슬라이스',
+          '아몬드 8g 부숴 토핑'
+        ],
+        tips: ['통곡 베타글루칸 + 베리 안토시아닌 (KSoLA)', '무가당 시리얼로 당류 절제'],
+        caution: ['땅콩·견과 알레르기자: 견과 생략'],
+        season: 'all', source: 'KSoLA·NIH'
+      },
+      {
+        id: 'r80', title: '두유 콩물 국수', emoji: '🍜', time: 15, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['소면','두유','오이','참깨','소금','얼음'],
+        nutrition: { kcal: 380, p: 18, c: 60, f: 8, fiber: 3, sodium: 180, sugar: 5, gi: 65 },
+        mealTime: ['lunch'], goals: ['cholesterol','general'],
+        allergens: ['글루텐','대두'],
+        steps: [
+          '소면 100g을 끓는 물에 3분 삶고 찬물에 헹굼',
+          '두유(무가당) 300ml에 소금 약간',
+          '면을 그릇에 담고 두유 부어주기',
+          '오이 채썰어 토핑',
+          '얼음 몇 개·참깨 마무리'
+        ],
+        tips: ['콩의 식물성 단백질·이소플라본', '여름 보양식'],
+        caution: ['갑상선약 복용자: 4시간 간격 (FDA)'],
+        season: '여름', source: 'MFDS·NIH-ODS'
       }
     ];
 
