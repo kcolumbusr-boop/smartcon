@@ -1055,6 +1055,12 @@
       <button class="btn btn-ghost btn-small" onclick="openHealthInput()">+ 건강 기록 추가</button>
     </div>
 
+    <!-- 30일 추이 — 데이터가 있을 때만 노출 (renderHealthTrends에서 토글) -->
+    <div id="healthTrends"></div>
+
+    <!-- 식사-건강 상관 — 데이터가 있을 때만 노출 -->
+    <div id="healthCorrelations"></div>
+
     <div class="card">
       <div class="card-title">💡 이번 주 인사이트</div>
       <div id="insights"></div>
@@ -6494,17 +6500,275 @@ JSON 형식:
         `;
       }).join('');
 
+      // 30일 추이 차트 + 식사-건강 상관 (데이터 충분할 때만)
+      renderHealthTrends();
+      renderHealthCorrelations(recent);
+
       // Insights (mock correlation engine output)
       const insights = generateInsights(recent);
       document.getElementById('insights').innerHTML = insights.map(i => `
         <div class="list-item">
           <div class="list-icon">${i.icon}</div>
           <div class="list-main">
-            <div class="list-title" style="font-size:14px;">${i.title}</div>
-            <div class="list-sub">${i.body}</div>
+            <div class="list-title" style="font-size:14px;">${escapeHtml(i.title)}</div>
+            <div class="list-sub">${escapeHtml(i.body)}</div>
           </div>
         </div>
       `).join('');
+    }
+
+    // ─── 30일 추이 SVG 미니 차트 ───
+    function buildSparkline(values, color, w, h, opts) {
+      opts = opts || {};
+      if (!values || values.length === 0) return '';
+      const valid = values.filter(v => v != null && !isNaN(v));
+      if (valid.length === 0) return '';
+      const min = Math.min(...valid);
+      const max = Math.max(...valid);
+      const range = (max - min) || 1;
+      const stepX = w / Math.max(1, values.length - 1);
+      const points = values.map((v, i) => {
+        if (v == null || isNaN(v)) return null;
+        const x = i * stepX;
+        const y = h - ((v - min) / range) * (h - 4) - 2;
+        return [x, y];
+      }).filter(Boolean);
+      if (points.length < 2) {
+        // 단일 점은 가로선으로 표시
+        const y = h / 2;
+        return `<svg width="${w}" height="${h}" style="display:block;"><line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="${color}" stroke-width="2" stroke-dasharray="3,3" opacity=".5"/><circle cx="${w/2}" cy="${y}" r="3" fill="${color}"/></svg>`;
+      }
+      const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+      const last = points[points.length - 1];
+      return `<svg width="${w}" height="${h}" style="display:block;">
+        <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3" fill="${color}"/>
+      </svg>`;
+    }
+
+    // 최근 30일 metric별 일일 마지막 기록값 시리즈
+    function buildHealthSeries(metric, days) {
+      days = days || 30;
+      const series = [];
+      const now = new Date();
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 86400000);
+        const key = localDateKey(d);
+        const dayRecords = (state.health || []).filter(h =>
+          h.metric === metric && localDateKey(h.time) === key
+        );
+        if (dayRecords.length === 0) {
+          series.push(null);
+        } else {
+          // 같은 날 여러 기록 → 마지막 값 사용
+          dayRecords.sort((a, b) => new Date(b.time) - new Date(a.time));
+          series.push(dayRecords[0].value);
+        }
+      }
+      return series;
+    }
+
+    function renderHealthTrends() {
+      const wrap = document.getElementById('healthTrends');
+      if (!wrap) return;
+      if (!hasHealthData()) {
+        // 데이터 없을 때는 잠금 안내 (홈에도 같은 CTA가 있어 중복은 짧게)
+        wrap.innerHTML = `
+          <div class="card" style="background:rgba(59,130,246,.06); border:1px solid rgba(59,130,246,.2);">
+            <div style="display:flex; gap:10px; align-items:flex-start;">
+              <div style="font-size:22px;">🔒</div>
+              <div style="flex:1;">
+                <div style="font-size:13px; font-weight:700; color:var(--text);">30일 추이 차트가 잠금 상태예요</div>
+                <div style="font-size:11.5px; color:var(--muted); margin-top:3px; line-height:1.6;">
+                  체중·혈당·수면·걸음 중 1개라도 기록하면 자동 활성화됩니다.
+                </div>
+              </div>
+              <button class="btn btn-primary btn-small" onclick="openHealthInput()">➕ 입력</button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+      const trends = [
+        { metric: 'weight', icon: '⚖️', label: '체중', unit: 'kg', color: '#10b981' },
+        { metric: 'blood_sugar', icon: '🩸', label: '공복혈당', unit: 'mg/dL', color: '#ef4444' },
+        { metric: 'sleep', icon: '😴', label: '수면', unit: '시간', color: '#a78bfa' },
+        { metric: 'steps', icon: '👟', label: '걸음', unit: '보', color: '#fbbf24' }
+      ];
+      const cards = trends.map(t => {
+        const series = buildHealthSeries(t.metric, 30);
+        const valid = series.filter(v => v != null && !isNaN(v));
+        if (valid.length === 0) return '';
+        const last = valid[valid.length - 1];
+        const first = valid[0];
+        const delta = valid.length >= 2 ? last - first : 0;
+        const pct = first > 0 ? Math.round((delta / first) * 100) : 0;
+        const sign = delta > 0 ? '↑' : (delta < 0 ? '↓' : '→');
+        const arrowColor = (t.metric === 'weight' || t.metric === 'blood_sugar')
+          ? (delta > 0 ? '#f87171' : (delta < 0 ? '#6ee7b7' : 'var(--muted)'))   // 낮을수록 좋음
+          : (delta > 0 ? '#6ee7b7' : (delta < 0 ? '#f87171' : 'var(--muted)'));  // 높을수록 좋음
+        const spark = buildSparkline(series.map(v => v == null ? null : Number(v)), t.color, 140, 36);
+        return `
+          <div style="display:flex; align-items:center; gap:10px; padding:10px; background:rgba(0,0,0,.2); border-radius:10px;">
+            <div style="font-size:22px; flex-shrink:0;">${t.icon}</div>
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; justify-content:space-between; align-items:baseline; gap:6px; margin-bottom:2px;">
+                <div style="font-size:12px; color:var(--muted);">${t.label}</div>
+                <div style="font-size:10px; color:var(--muted);">${valid.length}건 / 30일</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                <div style="font-size:16px; font-weight:800; color:var(--text);">${typeof last === 'number' ? last.toFixed(t.metric === 'sleep' || t.metric === 'weight' ? 1 : 0) : '-'} ${t.unit}</div>
+                ${valid.length >= 2 ? `<div style="font-size:11px; font-weight:700; color:${arrowColor};">${sign} ${Math.abs(pct)}%</div>` : ''}
+              </div>
+              ${spark}
+            </div>
+          </div>
+        `;
+      }).filter(Boolean).join('');
+
+      wrap.innerHTML = `
+        <div class="card">
+          <div class="card-title">📈 30일 추이</div>
+          <div style="display:flex; flex-direction:column; gap:8px;">${cards || '<div style="font-size:12px; color:var(--muted); padding:8px 0;">아직 표시할 추이가 없어요 — 며칠 더 기록하면 그래프가 나타납니다.</div>'}</div>
+          <div style="margin-top:10px; font-size:10px; color:var(--muted); line-height:1.5;">
+            * 화살표 색은 일반 권장 방향 (체중·혈당은 낮을수록, 수면·걸음은 높을수록 ↑) — 의학적 진단 아님.
+          </div>
+        </div>
+      `;
+    }
+
+    // ─── 식사-건강 상관 인사이트 ───
+    // 단순 수치 비교: 최근 30일 평균을 직전 30일 평균과 비교 + 동시 변화 여부
+    function renderHealthCorrelations(recentMeals) {
+      const wrap = document.getElementById('healthCorrelations');
+      if (!wrap) return;
+      if (!hasRichHealthData()) {
+        wrap.innerHTML = '';   // 정밀 모드(2종 이상 30일 내) 아닐 땐 표시 안 함
+        return;
+      }
+      const correlations = computeFoodHealthCorrelations();
+      if (correlations.length === 0) { wrap.innerHTML = ''; return; }
+      wrap.innerHTML = `
+        <div class="card">
+          <div class="card-title">🔬 식사-건강 상관 분석</div>
+          <div style="font-size:11px; color:var(--muted); margin-bottom:10px; line-height:1.6;">
+            최근 30일과 직전 30일 데이터를 비교한 일반적 패턴 — 인과관계가 아닌 참고용 관찰입니다.
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            ${correlations.map(c => `
+              <div style="background:rgba(0,0,0,.2); border-left:3px solid ${c.color}; padding:10px 12px; border-radius:8px;">
+                <div style="font-size:13px; font-weight:700; color:${c.color}; margin-bottom:4px;">${c.icon} ${escapeHtml(c.title)}</div>
+                <div style="font-size:11.5px; color:var(--text); line-height:1.65;">${escapeHtml(c.body)}</div>
+                ${c.suggestion ? `<div style="margin-top:6px; font-size:11px; color:#6ee7b7;">💡 ${escapeHtml(c.suggestion)}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:10px; padding:8px 10px; background:rgba(245,158,11,.06); border-left:3px solid #f59e0b; border-radius:6px; font-size:10.5px; color:#fcd34d; line-height:1.65;">
+            ⚠️ 본 분석은 사용자 입력 데이터의 일반적 추세를 보여줄 뿐이며 의학적 인과관계나 진단을 제공하지 않습니다. 약 복용·기저질환자는 의사·영양사 상담 권장.
+          </div>
+        </div>
+      `;
+    }
+
+    // 단순 30일 ↔ 직전 30일 평균 비교 — 동시 변화 패턴만 추출
+    function computeFoodHealthCorrelations() {
+      const now = Date.now();
+      const range = 30 * 86400000;
+      const window1 = { start: now - range, end: now };                       // 최근 30일
+      const window0 = { start: now - 2 * range, end: now - range };           // 직전 30일
+
+      const mealsIn = (w) => (state.meals || []).filter(m => {
+        const t = new Date(m.consumed_at).getTime();
+        return t >= w.start && t < w.end;
+      });
+      const healthIn = (w, metric) => (state.health || []).filter(h => {
+        const t = new Date(h.time).getTime();
+        return h.metric === metric && t >= w.start && t < w.end;
+      });
+      const avg = (arr, key) => {
+        const valid = arr.filter(x => x[key] != null && !isNaN(x[key])).map(x => Number(x[key]));
+        return valid.length ? valid.reduce((s, v) => s + v, 0) / valid.length : null;
+      };
+
+      const result = [];
+
+      // 1) 평균 칼로리 vs 체중
+      const wRecent = avg(healthIn(window1, 'weight'), 'value');
+      const wPrev = avg(healthIn(window0, 'weight'), 'value');
+      const kRecent = avg(mealsIn(window1), 'total_kcal');
+      const kPrev = avg(mealsIn(window0), 'total_kcal');
+      if (wRecent != null && wPrev != null && kRecent != null && kPrev != null) {
+        const dW = wRecent - wPrev;
+        const dK = kRecent - kPrev;
+        const dir = dW > 0.3 ? '증가' : (dW < -0.3 ? '감소' : '유지');
+        const kDir = dK > 30 ? '높음' : (dK < -30 ? '낮음' : '비슷');
+        result.push({
+          icon: '⚖️',
+          title: `체중 ${dir} · 평균 칼로리 ${kDir}`,
+          body: `최근 30일 평균 체중 ${wRecent.toFixed(1)}kg (직전 ${wPrev.toFixed(1)}kg, ${dW >= 0 ? '+' : ''}${dW.toFixed(1)}kg) · 평균 한 끼 ${Math.round(kRecent)}kcal (직전 ${Math.round(kPrev)})`,
+          suggestion: (dW > 0.3 && dK > 30) ? '칼로리 30~50% 줄이거나 활동량 늘리는 것을 고려해보세요'
+                    : (dW < -0.3 && dK < -30) ? '계획된 감량이라면 단백질 충분히 (1.2g/kg 이상)'
+                    : null,
+          color: dW > 0.3 ? '#fbbf24' : (dW < -0.3 ? '#6ee7b7' : '#94a3b8')
+        });
+      }
+
+      // 2) 평균 당 섭취 vs 공복혈당
+      const bsRecent = avg(healthIn(window1, 'blood_sugar'), 'value');
+      const bsPrev = avg(healthIn(window0, 'blood_sugar'), 'value');
+      const sRecent = avg(mealsIn(window1), 'total_sugar_g');
+      const sPrev = avg(mealsIn(window0), 'total_sugar_g');
+      if (bsRecent != null && sRecent != null) {
+        const high = bsRecent >= 100;
+        const sugarHigh = sRecent > 15;
+        const body = bsPrev != null && sPrev != null
+          ? `최근 평균 공복혈당 ${Math.round(bsRecent)} mg/dL (직전 ${Math.round(bsPrev)}) · 한 끼 평균 당 ${Math.round(sRecent)}g (직전 ${Math.round(sPrev)})`
+          : `최근 평균 공복혈당 ${Math.round(bsRecent)} mg/dL · 한 끼 평균 당 ${Math.round(sRecent)}g`;
+        result.push({
+          icon: '🩸',
+          title: high ? `공복혈당 주의 (${Math.round(bsRecent)} mg/dL)` : `공복혈당 안정`,
+          body,
+          suggestion: high && sugarHigh
+            ? '단순당 음료·디저트를 채소·단백질로 대체 + 식후 30분 산책 권장 (KDA 2023)'
+            : (high ? '단순당과 정제곡물을 줄이고 식이섬유·단백질 함께 섭취 권장 (KDA)' : null),
+          color: high ? '#f87171' : '#6ee7b7'
+        });
+      }
+
+      // 3) 평균 나트륨 vs 혈압 (혈압 기록이 있으면)
+      const bpRecent = avg(healthIn(window1, 'blood_pressure'), 'value');
+      const naRecent = avg(mealsIn(window1), 'total_sodium_mg');
+      if (bpRecent != null && naRecent != null) {
+        const highBp = bpRecent >= 130;
+        const highNa = naRecent > 800;
+        result.push({
+          icon: '❤️',
+          title: highBp ? `수축기 혈압 주의 (${Math.round(bpRecent)} mmHg)` : '혈압 안정',
+          body: `최근 평균 수축기 ${Math.round(bpRecent)} · 한 끼 평균 나트륨 ${Math.round(naRecent)}mg`,
+          suggestion: highBp && highNa
+            ? '나트륨 1식 600mg 이내로 — 국물·간 양념 줄이고 칼륨 식품(바나나·시금치) 추가 (KSH 2022)'
+            : null,
+          color: highBp ? '#f87171' : '#6ee7b7'
+        });
+      }
+
+      // 4) 평균 수면 vs 식사 점수 (다이어트 점수 사용)
+      const slpRecent = avg(healthIn(window1, 'sleep'), 'value');
+      const dietRecent = avg(mealsIn(window1), 'score_diet');
+      if (slpRecent != null && dietRecent != null) {
+        const lowSleep = slpRecent < 6;
+        result.push({
+          icon: '😴',
+          title: lowSleep ? `수면 부족 (${slpRecent.toFixed(1)}h)` : `수면 적정 (${slpRecent.toFixed(1)}h)`,
+          body: `최근 평균 수면 ${slpRecent.toFixed(1)}시간 · 식사 다이어트 점수 ${Math.round(dietRecent)}점`,
+          suggestion: lowSleep
+            ? '수면 부족 시 식욕 호르몬(렙틴↓·그렐린↑) 변화로 과식 경향 — 7시간 이상 권장 (NIH)'
+            : null,
+          color: lowSleep ? '#fbbf24' : '#94a3b8'
+        });
+      }
+
+      return result;
     }
 
     function generateInsights(meals) {
