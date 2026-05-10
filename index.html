@@ -10475,38 +10475,74 @@ JSON 형식:
       window.addEventListener('beforeunload', () => { if (state.profile) save(); });
     })();
 
-    // Register service worker (offline) + auto-update
+    // ─── Service Worker 등록 + 업데이트 알림 ───
+    // PWA project site (/smartcon/) 경로 정합성: 상대경로로 등록
+    // 새 버전 감지 → 사용자에게 명시적 배너로 알림 (지금 / 나중에)
+    function showUpdateBanner(newWorker) {
+      // 이미 배너가 있으면 중복 노출 방지
+      if (document.getElementById('updateBanner')) return;
+      const lang = (typeof getLang === 'function') ? getLang() : 'ko';
+      const t = lang === 'en'
+        ? { title: '✨ New version available', body: 'Apply now or later? Saved data is preserved.', now: '🔄 Update now', later: 'Later' }
+        : { title: '✨ 새 버전이 있어요', body: '지금 적용할까요? 저장된 데이터는 유지됩니다.', now: '🔄 지금 업데이트', later: '나중에' };
+
+      const wrap = document.createElement('div');
+      wrap.id = 'updateBanner';
+      wrap.setAttribute('role', 'alert');
+      wrap.setAttribute('aria-live', 'polite');
+      wrap.style.cssText = 'position:fixed; left:12px; right:12px; bottom:88px; max-width:480px; margin:0 auto; z-index:9999; background:linear-gradient(135deg,#10b981,#06b6d4); color:white; padding:12px 14px; border-radius:14px; box-shadow:0 8px 24px rgba(16,185,129,.45); animation:fadeIn .25s ease;';
+      wrap.innerHTML = `
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+          <div style="font-size:22px; flex-shrink:0;">🚀</div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:13px; font-weight:800; margin-bottom:3px;">${t.title}</div>
+            <div style="font-size:11.5px; opacity:.95; line-height:1.5;">${t.body}</div>
+            <div style="display:flex; gap:6px; margin-top:10px;">
+              <button type="button" id="updateNowBtn" style="flex:1; padding:8px 10px; border:none; border-radius:8px; background:white; color:#0f766e; font-weight:800; font-size:12px; cursor:pointer;">${t.now}</button>
+              <button type="button" id="updateLaterBtn" style="padding:8px 12px; border:1px solid rgba(255,255,255,.4); border-radius:8px; background:transparent; color:white; font-weight:600; font-size:12px; cursor:pointer;">${t.later}</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(wrap);
+      document.getElementById('updateNowBtn').onclick = () => {
+        try { newWorker.postMessage('SKIP_WAITING'); } catch (e) {}
+        // controllerchange 핸들러가 자동 reload 처리 — 즉시 반영
+        wrap.remove();
+        if (typeof showToast === 'function') showToast('🔄 업데이트 적용 중...');
+      };
+      document.getElementById('updateLaterBtn').onclick = () => {
+        wrap.remove();
+        if (typeof showToast === 'function') showToast('다음 진입 시 자동 적용됩니다');
+      };
+    }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', async () => {
         try {
-          const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
 
-          // 업데이트 감지 시 토스트 표시 + 수동 새로고침 유도
+          // 업데이트 감지 — 명시적 배너로 알림
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
             if (!newWorker) return;
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // 새 버전 설치 완료 — 기존 탭은 여전히 구버전, 알림 표시
-                try {
-                  const n = document.createElement('div');
-                  n.style.cssText = 'position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:9999; background:linear-gradient(135deg,#10b981,#06b6d4); color:white; padding:10px 16px; border-radius:10px; font-size:13px; font-weight:700; box-shadow:0 4px 14px rgba(16,185,129,.4); cursor:pointer;';
-                  n.innerHTML = '✨ 새 버전 사용 가능 · 탭하여 새로고침';
-                  n.onclick = () => {
-                    newWorker.postMessage('SKIP_WAITING');
-                    location.reload();
-                  };
-                  document.body.appendChild(n);
-                  setTimeout(() => { try { n.remove(); } catch(e){} }, 10000);
-                } catch(e) {}
+                showUpdateBanner(newWorker);
               }
             });
           });
 
-          // 페이지 포커스 시 업데이트 체크 (빠른 반영)
+          // 이미 대기 중인 SW가 있으면 즉시 배너 표시 (페이지 로드 후 등록 케이스)
+          if (reg.waiting && navigator.serviceWorker.controller) {
+            showUpdateBanner(reg.waiting);
+          }
+
+          // 페이지 포커스 시 + 1시간 주기로 업데이트 체크
           document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') reg.update().catch(() => {});
           });
+          setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
 
           // SW 제어권 변경 시 자동 새로고침 (첫 컨트롤러 무시)
           let swRefreshing = false;

@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v29: Next meal AI recommendation — analyzes current meal gaps/excess + goal + time of day, recommends Top 3 from 12-food DB with reasoning
-const CACHE_NAME = 'smartcon-v29-next-meal';
+// v30: Update notification banner + meal plan + i18n + multi-image food/inventory + recipe search + categorized shopping
+const CACHE_NAME = 'smartcon-v30-update-aware';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
