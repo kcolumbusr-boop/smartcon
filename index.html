@@ -3310,6 +3310,32 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       return escapeHtml(JSON.stringify(s == null ? '' : String(s)));
     }
 
+    // ─── AI 응답 영양값 sanity 정규화 ───
+    // Gemini 응답이 음수·NaN·Infinity·비현실적 값을 반환할 때 안전하게 클램프
+    function safeNum(v, min, max, fallback) {
+      const n = Number(v);
+      if (isNaN(n) || !isFinite(n)) return fallback != null ? fallback : 0;
+      if (n < min) return min;
+      if (n > max) return max;
+      return n;
+    }
+    // AI 영양 항목 한 개를 안전한 형태로 정규화
+    function sanitizeAIItem(it, fallbackConfidence) {
+      const portion = safeNum(it && it.portion_g, 1, 3000, 100);
+      const kcal = safeNum(it && it.kcal, 0, 3000, 0);
+      const p = safeNum(it && it.protein_g, 0, portion, 0);
+      const c = safeNum(it && it.carb_g, 0, portion, 0);
+      const f = safeNum(it && it.fat_g, 0, portion, 0);
+      const fiber = safeNum(it && it.fiber_g, 0, portion, 0);
+      const sodium = safeNum(it && it.sodium_mg, 0, 10000, 0);
+      const sugar = safeNum(it && it.sugar_g, 0, c, 0);   // 당 ≤ 탄수 (물리적 상한)
+      const gi = safeNum(it && it.gi, 0, 100, 50);
+      const confidence = safeNum(it && it.confidence, 0, 1, fallbackConfidence != null ? fallbackConfidence : 0.7);
+      const name = (it && typeof it.name === 'string' && it.name.trim()) ? it.name.trim().substring(0, 50) : '음식';
+      const category = (it && typeof it.category === 'string') ? it.category.substring(0, 30) : null;
+      return { name, portion: Math.round(portion), confidence, kcal, p, c, f, fiber, sodium, sugar, gi, category };
+    }
+
     function uid() { return Math.random().toString(36).substring(2,10); }
 
     // 로컬 시간대 기준 YYYY-MM-DD 키 — toISOString()이 UTC라 한국 오후 9시 이후 식사가 다음날로 잘못 분류되는 버그 방지
@@ -4150,14 +4176,7 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       if (!parsed.items || parsed.items.length === 0) {
         throw new Error(`음식이 인식되지 않았어요. "${text}"`);
       }
-      return parsed.items.map(it => ({
-        name: it.name,
-        portion: Math.round(it.portion_g || 100),
-        confidence: 0.9,
-        kcal: it.kcal, p: it.protein_g, c: it.carb_g, f: it.fat_g,
-        fiber: it.fiber_g, sodium: it.sodium_mg, sugar: it.sugar_g,
-        gi: it.gi || 50
-      }));
+      return parsed.items.map(it => sanitizeAIItem(it, 0.9));
     }
 
     function parseVoiceWithLocalDB(text) {
@@ -4283,15 +4302,7 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
           if (!ai.items || ai.items.length === 0) {
             throw new Error('음식을 인식하지 못했어요. 다시 찍어주세요.');
           }
-          items = ai.items.map(it => ({
-            name: it.name,
-            portion: Math.round(it.portion_g || 100),
-            confidence: it.confidence || 0.8,
-            kcal: it.kcal, p: it.protein_g, c: it.carb_g, f: it.fat_g,
-            fiber: it.fiber_g, sodium: it.sodium_mg, sugar: it.sugar_g,
-            gi: it.gi || 50,
-            category: it.category
-          }));
+          items = ai.items.map(it => sanitizeAIItem(it, 0.8));
           state.__lastAIResponse = ai;
         } else {
           // Fallback: mock mode
