@@ -8,6 +8,28 @@
   <meta name="apple-mobile-web-app-title" content="SmartCon" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#10b981" />
+
+  <!-- 보안: Content-Security-Policy
+       단일파일 PWA라 인라인 JS·CSS는 'unsafe-inline' 허용.
+       Gemini API만 외부 connect 허용, dataURL/blob 이미지 허용.
+       추후 코드 분리 시 nonce 또는 strict-dynamic으로 강화 가능. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob:;
+    media-src 'self' blob:;
+    connect-src 'self' https://generativelanguage.googleapis.com;
+    font-src 'self' data:;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+    upgrade-insecure-requests
+  " />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png" />
