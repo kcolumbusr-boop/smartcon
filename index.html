@@ -9977,10 +9977,20 @@ JSON 형식:
     }
 
     // ============== MODAL ==============
+    let __lastFocusedBeforeModal = null;
     function openModal() {
       const bd = document.getElementById('modalBackdrop');
       bd.classList.add('active');
       bd.setAttribute('aria-hidden', 'false');   // 스크린리더에 다이얼로그 활성 알림
+      // 포커스 복원용 — 모달 열기 전 활성 요소 저장
+      try { __lastFocusedBeforeModal = document.activeElement; } catch (e) {}
+      // 모달 첫 포커스 가능한 요소로 포커스 이동 (스크린리더·키보드 사용자 진입성)
+      setTimeout(() => {
+        const modal = document.getElementById('modalContent');
+        if (!modal) return;
+        const first = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (first) try { first.focus(); } catch (e) {}
+      }, 30);
     }
     function closeModal() {
       const bd = document.getElementById('modalBackdrop');
@@ -9989,14 +9999,70 @@ JSON 형식:
       if (window.__keyPollTimer) { clearInterval(window.__keyPollTimer); window.__keyPollTimer = null; }
       // 메모리 회수: 모달이 닫히면 임시 사진(스캔용) 배열도 비움 — 영구 저장 X 정책 준수
       if (window.__scanImages) clearScanImages();
+      // 포커스 복원
+      if (__lastFocusedBeforeModal && typeof __lastFocusedBeforeModal.focus === 'function') {
+        try { __lastFocusedBeforeModal.focus(); } catch (e) {}
+        __lastFocusedBeforeModal = null;
+      }
     }
-    // 접근성: Escape 키로 활성 모달 닫기
+
+    // ─── 접근성: 모달 활성 시 Tab focus trap + Escape 닫기 + 전역 단축키 ───
     document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape') return;
       const bd = document.getElementById('modalBackdrop');
-      if (bd && bd.classList.contains('active')) {
+      const modalActive = bd && bd.classList.contains('active');
+
+      // Escape: 모달이 열려있으면 닫기
+      if (e.key === 'Escape' && modalActive) {
         e.preventDefault();
         closeModal();
+        return;
+      }
+
+      // 모달 활성 시 Tab/Shift+Tab을 모달 내부로 가둠 (focus trap)
+      if (e.key === 'Tab' && modalActive) {
+        const modal = document.getElementById('modalContent');
+        if (!modal) return;
+        const focusables = Array.from(modal.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter(el => el.offsetParent !== null);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+
+      // 모달 활성 시 단축키는 비활성
+      if (modalActive) return;
+
+      // 입력 중이면 단축키 비활성 (input·textarea·contenteditable)
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // 1~5: 탭 전환
+      const tabMap = { '1': 'home', '2': 'inventory', '3': 'camera', '4': 'shopping', '5': 'recipes' };
+      if (tabMap[e.key]) {
+        e.preventDefault();
+        goTo(tabMap[e.key]);
+        return;
+      }
+      // R: 리포트, P: 프로필
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); goTo('report'); return; }
+      if (e.key === 'p' || e.key === 'P') { e.preventDefault(); goTo('profile'); return; }
+      // / 또는 ?: 레시피 화면이면 검색창 포커스
+      if (e.key === '/' || e.key === '?') {
+        const recScreen = document.getElementById('screen-recipes');
+        if (recScreen && recScreen.classList.contains('active')) {
+          const input = document.getElementById('recipeSearchInput');
+          if (input) { e.preventDefault(); try { input.focus(); } catch (_) {} }
+        }
       }
     });
 
