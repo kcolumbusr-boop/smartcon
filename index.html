@@ -4150,6 +4150,7 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         medications: [],          // 복용약 카테고리 (Pro 기능) — 음식·레시피 상호작용 경고
         targetWeight: null,       // 건강 목표 — 체중 (kg)
         targetBloodSugar: null,   // 건강 목표 — 공복혈당 (mg/dL)
+        foodPortionLearned: {},   // 사용자 보정 학습 — { [foodName]: { portion, count, updatedAt } }
         createdAt: new Date().toISOString()
       };
 
@@ -5261,6 +5262,19 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
             throw new Error('음식을 인식하지 못했어요. 다시 찍어주세요.');
           }
           items = ai.items.map(it => sanitizeAIItem(it, 0.8));
+          // 사용자 보정 학습 자동 적용 — 같은 이름의 학습값이 있으면 portion·영양값 비례 보정
+          items = items.map(it => {
+            const learned = getLearnedPortion(it.name);
+            if (!learned || !it.portion || Math.abs(learned - it.portion) < 10) return it;
+            const ratio = learned / it.portion;
+            return {
+              ...it,
+              portion: learned,
+              kcal: it.kcal * ratio, p: it.p * ratio, c: it.c * ratio, f: it.f * ratio,
+              fiber: it.fiber * ratio, sodium: it.sodium * ratio, sugar: it.sugar * ratio,
+              __learnedApplied: true   // 안내 표시용 플래그
+            };
+          });
           state.__lastAIResponse = ai;
         } else {
           // Fallback: mock mode (사진 장수에 비례해 인식 항목 수 증가)
@@ -5302,6 +5316,11 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         // 다중 사진이면 추가 안내
         if (imageCount > 1) {
           showToast(`✨ ${imageCount}장 통합 분석 완료 — ${items.length}개 음식 인식`);
+        }
+        // 학습값 자동 적용 안내 (사용자 이전 보정값이 반영된 경우)
+        const appliedLearned = items.filter(it => it.__learnedApplied).map(it => it.name);
+        if (appliedLearned.length > 0) {
+          setTimeout(() => showToast(`💡 이전 보정값 자동 적용: ${appliedLearned.join(', ')}`), 1500);
         }
 
         // AI 모드 분석 성공 시 결과 캐시 (이미지 X, 결과 JSON만)
@@ -8841,6 +8860,30 @@ JSON 형식:
       openCorrection();
     }
 
+    // ─── 사용자 보정 학습 ───
+    // 사용자가 AI 추정 portion을 자주 보정하면 "이 사용자는 이 음식을 ~g으로 먹는다" 학습
+    // 가중평균(EMA)으로 누적 — 최신 보정에 더 큰 가중치
+    function ensureLearnedFields() {
+      if (!state.profile) return;
+      if (!state.profile.foodPortionLearned) state.profile.foodPortionLearned = {};
+    }
+    function learnFoodPortion(name, portion) {
+      ensureLearnedFields();
+      const key = String(name || '').trim();
+      if (!key || !portion || portion < 5 || portion > 3000) return;
+      const prev = state.profile.foodPortionLearned[key];
+      // EMA: alpha=0.5 (최근값에 50% 가중)
+      const next = prev
+        ? { portion: Math.round(prev.portion * 0.5 + portion * 0.5), count: (prev.count || 1) + 1, updatedAt: Date.now() }
+        : { portion: Math.round(portion), count: 1, updatedAt: Date.now() };
+      state.profile.foodPortionLearned[key] = next;
+    }
+    function getLearnedPortion(name) {
+      ensureLearnedFields();
+      const v = state.profile.foodPortionLearned[String(name || '').trim()];
+      return v && v.portion > 0 ? v.portion : null;
+    }
+
     function applyCorrection() {
       const cur = state.__currentAnalysis;
       const nameInputs = document.querySelectorAll('.cor-name');
@@ -8884,6 +8927,8 @@ JSON 형식:
         }
       }
       if (newItems.length === 0) { showToast('최소 1개 음식이 필요해요'); return; }
+      // 사용자 보정 학습 — 다음 분석 시 자동 적용 (state.profile.foodPortionLearned)
+      newItems.forEach(it => learnFoodPortion(it.name, it.portion));
       const total = { kcal: 0, p: 0, c: 0, f: 0, fiber: 0, sodium: 0, sugar: 0 };
       newItems.forEach(it => {
         total.kcal += it.kcal; total.p += it.p; total.c += it.c; total.f += it.f;
@@ -8892,9 +8937,10 @@ JSON 형식:
       const scores = calcScoresV2(total, state.profile.goal, newItems);
       const emoji = FOOD_EMOJI[newItems[0].name] || '🍽';
       cur.items = newItems; cur.total = total; cur.scores = scores; cur.emoji = emoji;
+      save();   // 학습 데이터 영구 저장
       document.getElementById('analysisResult').innerHTML = renderAnalysis(newItems, total, scores, emoji, cur.imgDataUrl);
       closeModal();
-      showToast('수정 완료 ✓');
+      showToast('수정 완료 ✓ — 다음 분석에 학습 반영');
     }
 
     function openManualInput(imgHint) {
