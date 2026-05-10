@@ -1165,6 +1165,11 @@
         </div>
         <div style="font-size:20px; color:var(--muted);">›</div>
       </div>
+      <div style="margin-top:8px; padding:8px 10px; background:rgba(0,0,0,.2); border-radius:8px; font-size:10.5px; color:var(--muted); line-height:1.6;">
+        🔒 사진 자체는 어디에도 저장되지 않습니다. 동일 사진 재분석 시 즉시 결과를 제공하기 위해
+        <b>SHA-256 해시(64자 문자열)</b>만 키로 사용하고 분석 결과 JSON만 30일·100건 한도로 임시 보관합니다.
+        <button class="btn btn-ghost btn-small" onclick="clearAnalysisCacheBtn()" style="margin-top:6px; padding:4px 10px; font-size:10.5px;">🧹 캐시 비우기</button>
+      </div>
     </div>
 
     <div class="card">
@@ -3277,13 +3282,19 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       return clone;
     }
 
+    const IDB_VERSION = 2;                  // bump 시 store 추가
+    const IDB_CACHE_STORE = 'analysisCache'; // AI 분석 결과 임시 캐시 (이미지 X, 결과 JSON만)
+    const ANALYSIS_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;   // 30일
+    const ANALYSIS_CACHE_MAX_ENTRIES = 100;                   // 최근 100건
+
     // IndexedDB helpers
     function idbOpen() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open(IDB_NAME, 1);
+        const req = indexedDB.open(IDB_NAME, IDB_VERSION);
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+          if (!db.objectStoreNames.contains(IDB_CACHE_STORE)) db.createObjectStore(IDB_CACHE_STORE);
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -3312,6 +3323,114 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
           req.onerror = () => resolve(null);
         });
       } catch(e) { return null; }
+    }
+
+    // ─── AI 분석 결과 캐시 (이미지는 저장 안 함, 결과 JSON만) ───
+    // 정책: 사용자 요청에 따라 이미지 자체는 어디에도 영구 저장하지 않음.
+    //       이미지 SHA-256 해시(64자 문자열)만 키로 사용하고, 값은 분석 결과 JSON.
+    //       30일 TTL + 최근 100건 LRU 제한.
+    async function imageHash(dataUrl) {
+      try {
+        const base64 = dataUrl.replace(/^data:image\/[\w+]+;base64,/, '');
+        const bin = atob(base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const buf = await crypto.subtle.digest('SHA-256', bytes);
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) {
+        console.warn('imageHash failed:', e);
+        return null;
+      }
+    }
+
+    async function cacheGetAnalysis(hash) {
+      if (!hash) return null;
+      try {
+        const db = await idbOpen();
+        return new Promise((resolve) => {
+          const tx = db.transaction(IDB_CACHE_STORE, 'readonly');
+          const req = tx.objectStore(IDB_CACHE_STORE).get(hash);
+          req.onsuccess = () => {
+            const entry = req.result;
+            if (!entry) return resolve(null);
+            // TTL 체크
+            if (Date.now() - entry.savedAt > ANALYSIS_CACHE_TTL_MS) return resolve(null);
+            resolve(entry);
+          };
+          req.onerror = () => resolve(null);
+        });
+      } catch (e) { return null; }
+    }
+
+    async function cachePutAnalysis(hash, analysis) {
+      if (!hash || !analysis) return;
+      try {
+        const db = await idbOpen();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(IDB_CACHE_STORE, 'readwrite');
+          // 이미지 데이터는 절대 캐시하지 않음 — analysis 안에 imgDataUrl·base64 등 있으면 제거
+          const safe = { ...analysis };
+          delete safe.imgDataUrl;
+          delete safe.base64;
+          delete safe.imageData;
+          tx.objectStore(IDB_CACHE_STORE).put({ ...safe, savedAt: Date.now() }, hash);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+        // 사이즈 제한 (best-effort)
+        cacheTrim().catch(() => {});
+      } catch (e) { console.warn('cachePutAnalysis failed:', e); }
+    }
+
+    // 100건 초과 시 가장 오래된 항목부터 정리
+    async function cacheTrim() {
+      try {
+        const db = await idbOpen();
+        return new Promise((resolve) => {
+          const tx = db.transaction(IDB_CACHE_STORE, 'readwrite');
+          const store = tx.objectStore(IDB_CACHE_STORE);
+          const entries = [];
+          const cur = store.openCursor();
+          cur.onsuccess = (e) => {
+            const c = e.target.result;
+            if (c) {
+              entries.push({ key: c.key, savedAt: c.value.savedAt || 0 });
+              c.continue();
+            } else {
+              if (entries.length > ANALYSIS_CACHE_MAX_ENTRIES) {
+                entries.sort((a, b) => a.savedAt - b.savedAt);
+                const drop = entries.slice(0, entries.length - ANALYSIS_CACHE_MAX_ENTRIES);
+                drop.forEach(d => store.delete(d.key));
+              }
+              resolve();
+            }
+          };
+          cur.onerror = () => resolve();
+        });
+      } catch (e) { /* 무시 */ }
+    }
+
+    // 프로필 화면 "캐시 비우기" 버튼 → 사용자에게 결과 알림
+    async function clearAnalysisCacheBtn() {
+      try {
+        await cacheClearAll();
+        showToast('🧹 분석 결과 캐시 비움');
+      } catch (e) {
+        showToast('캐시 비우기 실패: ' + (e.message || e));
+      }
+    }
+
+    // 사용자 요청 시 캐시 전체 삭제 (resetApp에서도 호출)
+    async function cacheClearAll() {
+      try {
+        const db = await idbOpen();
+        return new Promise((resolve) => {
+          const tx = db.transaction(IDB_CACHE_STORE, 'readwrite');
+          tx.objectStore(IDB_CACHE_STORE).clear();
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        });
+      } catch (e) { /* 무시 */ }
     }
 
     // Request browser to NOT clear our data (PWA persistence)
@@ -4440,6 +4559,25 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         </div>
       `;
 
+      // 캐시 조회 — 같은 이미지 재분석 시 즉시 결과 반환 (이미지 자체는 저장하지 않음)
+      let imgHashKey = null;
+      if (hasKey) {
+        try {
+          imgHashKey = await imageHash(imgDataUrl);
+          if (imgHashKey) {
+            const cached = await cacheGetAnalysis(imgHashKey);
+            if (cached && cached.items && cached.total && cached.scores) {
+              const goal = state.profile.goal;
+              const emoji = cached.emoji || FOOD_EMOJI[cached.items[0].name] || '🍽';
+              result.innerHTML = renderAnalysis(cached.items, cached.total, cached.scores, emoji, imgDataUrl);
+              state.__currentAnalysis = { items: cached.items, total: cached.total, scores: cached.scores, emoji, imgDataUrl };
+              showToast('⚡ 동일 사진 — 캐시된 결과 즉시 표시 (API 호출 절감)');
+              return;
+            }
+          }
+        } catch (e) { /* 캐시 실패는 무시하고 정상 분석 진행 */ }
+      }
+
       try {
         let items, totalRaw;
         if (hasKey) {
@@ -4503,6 +4641,11 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         result.innerHTML = renderAnalysis(items, total, scores, emoji, imgDataUrl);
         // Store current analysis for manual correction
         state.__currentAnalysis = { items, total, scores, emoji, imgDataUrl };
+
+        // AI 모드에서 분석 성공 시 결과를 캐시 (이미지 X, 결과 JSON만 — TTL 30일)
+        if (hasKey && imgHashKey) {
+          cachePutAnalysis(imgHashKey, { items, total, scores, emoji }).catch(() => {});
+        }
       } catch(err) {
         result.innerHTML = `
           <div class="analysis-panel">
@@ -7868,6 +8011,8 @@ JSON 형식:
         const db = await idbOpen();
         const tx = db.transaction(IDB_STORE, 'readwrite');
         tx.objectStore(IDB_STORE).delete(SKEY);
+        // AI 분석 결과 캐시도 비움 (이미지는 원래 저장 안 함, 결과 JSON만 있음)
+        await cacheClearAll();
         // 메모리상 캐시도 즉시 지움 (reload 전에라도 다른 코드가 read 못 하도록)
         state = {
           profile: null, meals: [], inventory: [], shopping: [],
