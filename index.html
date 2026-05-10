@@ -1101,6 +1101,15 @@
       </div>
     </div>
 
+    <!-- 알레르기 — 레시피 자동 제외에 사용 (식약처 8대 알레르겐) -->
+    <div class="card">
+      <div class="card-title">🚫 알레르기 (레시피 자동 제외)</div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+        등록된 알레르겐이 포함된 레시피는 추천에서 자동 제외됩니다. (식약처 표시기준 8대)
+      </div>
+      <div id="allergyChips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+    </div>
+
     <div class="card">
       <div class="card-title">🤖 AI 연결</div>
       <div class="list-item" onclick="openApiKeyInput()" style="cursor:pointer;">
@@ -1444,16 +1453,462 @@
       '고구마': '🍠', '아메리카노': '☕', '라떼': '🥛'
     };
 
-    // ============== RECIPE DATABASE ==============
+    // ============== ALLERGEN STANDARD (식약처 표시기준 8대) ==============
+    // 사용자 프로필에 등록된 알레르기와 매칭되면 추천에서 자동 제외
+    const ALLERGEN_LIST = ['우유', '계란', '대두', '글루텐', '갑각류', '견과', '땅콩', '생선'];
+
+    // ============== RECIPE DATABASE (강화 — 영양·조리법·알레르겐·건강 가이드) ==============
+    // 출처 약어: MFDS=식품의약품안전처 식품영양정보, KDA=대한당뇨병학회,
+    //          KSH=대한고혈압학회, KSoLA=대한지질·동맥경화학회,
+    //          NIH=NIH ODS, 한식진흥원=한식조리법
+    // ⚠️ 영양값은 100g 또는 1인분 기준 (recipe.servingNote 참조). 면책은 카드 하단 항시 노출.
     const RECIPES = [
-      { id: 'r1', title: '두부 김치찌개', emoji: '🍲', time: 20, difficulty: '쉬움', ingredients: ['두부', '김치', '돼지고기', '파'], kcal: 280, tags: ['한식','당뇨','단백질'] },
-      { id: 'r2', title: '닭가슴살 샐러드', emoji: '🥗', time: 15, difficulty: '쉬움', ingredients: ['닭가슴살', '양상추', '토마토', '드레싱'], kcal: 320, tags: ['다이어트','단백질','저탄수'] },
-      { id: 'r3', title: '현미 비빔밥', emoji: '🍱', time: 25, difficulty: '보통', ingredients: ['현미밥', '시금치', '당근', '계란', '고추장'], kcal: 520, tags: ['한식','섬유질'] },
-      { id: 'r4', title: '연어 스테이크', emoji: '🐟', time: 20, difficulty: '쉬움', ingredients: ['연어', '아스파라거스', '레몬', '올리브오일'], kcal: 380, tags: ['오메가3','단백질','당뇨'] },
-      { id: 'r5', title: '고구마 라떼', emoji: '🥛', time: 10, difficulty: '쉬움', ingredients: ['고구마', '우유', '꿀'], kcal: 240, tags: ['간식','식이섬유'] },
-      { id: 'r6', title: '순두부찌개', emoji: '🍲', time: 20, difficulty: '쉬움', ingredients: ['순두부', '해물', '고춧가루', '파'], kcal: 250, tags: ['한식','단백질'] },
-      { id: 'r7', title: '브로콜리 계란 볶음', emoji: '🥦', time: 15, difficulty: '쉬움', ingredients: ['브로콜리', '계란', '마늘'], kcal: 180, tags: ['다이어트','저탄수'] },
-      { id: 'r8', title: '닭가슴살 김밥', emoji: '🍣', time: 30, difficulty: '보통', ingredients: ['닭가슴살', '현미밥', '김', '시금치', '당근'], kcal: 420, tags: ['근육','균형'] }
+      // ── 기존 8개 마이그레이션 ──
+      {
+        id: 'r1', title: '두부 김치찌개', emoji: '🍲', time: 20, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['두부','김치','돼지고기','파','마늘','고춧가루'],
+        nutrition: { kcal: 320, p: 22, c: 14, f: 18, fiber: 4, sodium: 1450, sugar: 5, gi: 50 },
+        mealTime: ['lunch','dinner'], goals: ['muscle','general'],
+        allergens: ['대두'],
+        steps: [
+          '김치 1/4쪽을 한입 크기로 썰고 신김치는 살짝 헹궈 염도 조절',
+          '돼지고기 100g을 핏기 빼고 마늘·고춧가루로 가볍게 양념',
+          '냄비에 참기름 1작은술 둘러 돼지고기 볶다 김치 투입, 5분 볶음',
+          '물 2컵 또는 멸치육수 부어 중불 10분 끓임',
+          '두부 1/2모를 큼직히 썰어 넣고 5분 더 끓이며 파 마무리',
+          '간 보고 부족하면 국간장 1/2작은술. 소금 추가는 자제'
+        ],
+        tips: ['신김치 사용 시 헹궈 염도↓ 자극 완화 (KSH)', '두부의 식물성 단백질이 포화지방 균형'],
+        caution: ['고혈압·신장질환자: 국물량 줄이고 섭취'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r2', title: '닭가슴살 샐러드', emoji: '🥗', time: 15, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['닭가슴살','양상추','토마토','오이','올리브유','레몬'],
+        nutrition: { kcal: 280, p: 32, c: 10, f: 12, fiber: 4, sodium: 320, sugar: 5, gi: 25 },
+        mealTime: ['lunch','dinner'], goals: ['diet','muscle','diabetes','cholesterol'],
+        allergens: [],
+        steps: [
+          '닭가슴살 120g을 0.7%(약 1g) 소금·후추 밑간 후 12분 삶거나 에어프라이 180℃ 12분',
+          '양상추·오이를 한입 크기로 찢고 토마토는 웨지로 썰기',
+          '닭가슴살을 결대로 찢어 채소와 섞기',
+          '드레싱: 올리브유 1큰술 + 레몬즙 1큰술 + 후추 + 디종머스터드 1/2작은술',
+          '먹기 직전 드레싱을 골고루 버무려 완성'
+        ],
+        tips: ['올리브유의 단일불포화지방이 지용성 비타민 흡수↑ (NIH-ODS)', '레몬 비타민C가 닭가슴살 철분 흡수 보조'],
+        caution: [],
+        season: 'all', source: 'MFDS·NIH-ODS'
+      },
+      {
+        id: 'r3', title: '현미 비빔밥', emoji: '🍱', time: 25, difficulty: '보통',
+        servingNote: '1인분 기준', ingredients: ['현미밥','시금치','당근','계란','고추장','참기름','콩나물'],
+        nutrition: { kcal: 520, p: 18, c: 78, f: 14, fiber: 9, sodium: 720, sugar: 6, gi: 58 },
+        mealTime: ['lunch','dinner'], goals: ['general','diabetes'],
+        allergens: ['계란','대두'],
+        steps: [
+          '현미밥 1공기(210g) 준비 (냉동밥은 데우기)',
+          '시금치는 데쳐 짜고 참기름·소금 약간으로 무침',
+          '당근은 채썰어 1분 볶고, 콩나물은 데쳐 무침',
+          '계란을 반숙 프라이로 부치기 (노른자 흐르는 정도)',
+          '큰 그릇에 밥, 나물·당근·콩나물 둘러담고 가운데 계란',
+          '고추장 1큰술 + 참기름 1/2작은술 비벼 완성'
+        ],
+        tips: ['현미·나물·콩나물의 식이섬유 9g이 혈당 상승 완화 (KDA 2023)', '고추장 양 1큰술 이내로 나트륨 관리'],
+        caution: ['고혈압자: 고추장을 양념간장으로 대체 권장'],
+        season: 'all', source: 'MFDS·KDA·한식진흥원'
+      },
+      {
+        id: 'r4', title: '연어 스테이크', emoji: '🐟', time: 20, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['연어','아스파라거스','레몬','올리브유','후추','마늘'],
+        nutrition: { kcal: 360, p: 28, c: 8, f: 22, fiber: 3, sodium: 280, sugar: 3, gi: 15 },
+        mealTime: ['lunch','dinner'], goals: ['cholesterol','muscle','diabetes'],
+        allergens: ['생선'],
+        steps: [
+          '연어 150g에 0.5g 소금·후추 밑간하고 키친타월로 물기 제거',
+          '아스파라거스는 밑동 잘라 다듬고 마늘은 편 썰기',
+          '팬을 강불로 충분히 달구고 올리브유 1작은술',
+          '연어 껍질 면 먼저 4분(바삭하게), 뒤집어 3분 굽기',
+          '같은 팬에 마늘·아스파라거스 2분 볶음',
+          '레몬즙·후추로 마무리, 함께 플레이팅'
+        ],
+        tips: ['연어 EPA/DHA가 LDL·중성지방 저하 보조 (KSoLA)', '레몬 비타민C가 항산화 시너지'],
+        caution: ['통풍·고요산자: 주 2회 이내 섭취 권장'],
+        season: 'all', source: 'MFDS·KSoLA·NIH-ODS'
+      },
+      {
+        id: 'r5', title: '고구마 요거트볼', emoji: '🍠', time: 10, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['고구마','그릭요거트','꿀','호두','블루베리'],
+        nutrition: { kcal: 320, p: 16, c: 42, f: 10, fiber: 6, sodium: 80, sugar: 18, gi: 50 },
+        mealTime: ['breakfast','snack'], goals: ['diet','general'],
+        allergens: ['우유','견과'],
+        steps: [
+          '찐고구마 100g을 한입 크기로 썰기',
+          '그릭요거트(무가당) 100g을 그릇에 펴기',
+          '고구마와 블루베리 한 줌 올리기',
+          '호두 8g을 잘게 부숴 토핑',
+          '꿀 1/2큰술 살짝 드리즐 (생략 가능)'
+        ],
+        tips: ['고구마 베타카로틴이 요거트 지방과 함께 섭취 시 흡수↑ (NIH-ODS)', '호두의 ALA-오메가3 항산화 시너지'],
+        caution: ['당뇨자: 꿀 생략하고 베리류로 단맛 대체 (KDA)'],
+        season: 'all', source: 'MFDS·NIH-ODS'
+      },
+      {
+        id: 'r6', title: '순두부찌개', emoji: '🍲', time: 20, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['순두부','바지락','고춧가루','계란','파','마늘'],
+        nutrition: { kcal: 240, p: 22, c: 8, f: 14, fiber: 2, sodium: 1320, sugar: 3, gi: 35 },
+        mealTime: ['lunch','dinner'], goals: ['muscle','general'],
+        allergens: ['대두','갑각류','계란'],
+        steps: [
+          '바지락 100g을 소금물에 30분 해감',
+          '뚝배기에 참기름·다진마늘·고춧가루 1/2큰술로 고추기름 내기',
+          '물 1.5컵·국간장 1/2작은술 부어 끓이기',
+          '바지락 넣어 입 벌 때까지 끓임',
+          '순두부 1/2팩을 큼직히 떠서 넣고 3분 더 끓임',
+          '계란 1개 깨 넣고 파 마무리'
+        ],
+        tips: ['순두부의 식물성 단백질·이소플라본', '국물보다 건더기 위주 섭취 시 나트륨 절감'],
+        caution: ['고혈압자: 국물 1/2 남김 권장 (KSH)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r7', title: '브로콜리 계란 볶음', emoji: '🥦', time: 12, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['브로콜리','계란','마늘','올리브유','후추'],
+        nutrition: { kcal: 220, p: 14, c: 8, f: 14, fiber: 5, sodium: 240, sugar: 3, gi: 15 },
+        mealTime: ['lunch','dinner','breakfast'], goals: ['diet','diabetes','cholesterol'],
+        allergens: ['계란'],
+        steps: [
+          '브로콜리 한 송이를 작은 송이로 자르고 30초 데치기',
+          '마늘 2쪽을 편썰기',
+          '팬에 올리브유 1작은술, 마늘 향 내기',
+          '브로콜리 넣어 강불로 2분 볶음',
+          '계란 2개를 풀어 둘러 넣고 살짝 굳을 때 섞음',
+          '후추로 마무리'
+        ],
+        tips: ['브로콜리 비타민K가 올리브유 지방과 함께 흡수↑ (Linus Pauling)', '저GI·저탄수로 혈당 부담 적음'],
+        caution: ['갑상선저하·와파린 복용자: 비타민K 다량 주의 (FDA)'],
+        season: 'all', source: 'MFDS·Linus Pauling'
+      },
+      {
+        id: 'r8', title: '닭가슴살 김밥', emoji: '🍣', time: 30, difficulty: '보통',
+        servingNote: '1줄 기준', ingredients: ['닭가슴살','현미밥','김','시금치','당근','단무지','참기름'],
+        nutrition: { kcal: 420, p: 26, c: 58, f: 8, fiber: 5, sodium: 720, sugar: 4, gi: 55 },
+        mealTime: ['lunch','snack'], goals: ['muscle','general'],
+        allergens: [],
+        steps: [
+          '닭가슴살 100g을 삶아 결대로 찢고 후추·참기름 1/2작은술 양념',
+          '현미밥 200g에 참기름·소금 약간 섞어 비빔밥',
+          '시금치 데쳐 무치고 당근 채썰어 살짝 볶음',
+          '김 위에 밥을 평평히 펴고 재료를 가지런히 정렬',
+          '단단히 말아 한입 크기로 썰기',
+          '겉면에 참기름 살짝 발라 윤기'
+        ],
+        tips: ['현미가 흰쌀 대비 GI↓·식이섬유↑ (KDA)', '단무지 대신 오이로 나트륨 추가 절감'],
+        caution: [],
+        season: 'all', source: 'MFDS·KDA·한식진흥원'
+      },
+
+      // ── 신규 17개 (다양성 확장) ──
+      {
+        id: 'r9', title: '된장찌개', emoji: '🍲', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['된장','두부','애호박','감자','양파','다시마','대파'],
+        nutrition: { kcal: 180, p: 12, c: 16, f: 8, fiber: 4, sodium: 1180, sugar: 4, gi: 45 },
+        mealTime: ['lunch','dinner'], goals: ['general'],
+        allergens: ['대두'],
+        steps: [
+          '다시마·멸치 육수 2컵 우리기 (15분)',
+          '감자·애호박·양파를 한입 크기로 썰기',
+          '된장 1.5큰술을 육수에 풀기 (체에 거르면 부드러움)',
+          '단단한 채소(감자) 먼저 넣어 5분',
+          '애호박·양파·두부 추가 5분',
+          '대파로 마무리'
+        ],
+        tips: ['된장 양은 1.5큰술 이내로 (1큰술당 나트륨 ~600mg)', '두부·채소 비율을 늘리면 영양 균형↑'],
+        caution: ['고혈압자: 된장 1큰술로 줄이고 국물 남김 (KSH)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r10', title: '미역국', emoji: '🥣', time: 30, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['미역','소고기','마늘','참기름','국간장'],
+        nutrition: { kcal: 140, p: 12, c: 6, f: 7, fiber: 3, sodium: 780, sugar: 1, gi: 25 },
+        mealTime: ['breakfast','lunch','dinner'], goals: ['general','muscle'],
+        allergens: [],
+        steps: [
+          '마른미역 10g을 찬물에 20분 불리고 잘라줌',
+          '소고기 80g을 참기름·다진마늘로 살짝 볶음',
+          '불린미역 추가 2분 볶음',
+          '물 2.5컵 부어 강불로 끓이다 거품 제거',
+          '약불로 줄여 20분 푹 끓임',
+          '국간장 1/2작은술로 간 (소금 추가 자제)'
+        ],
+        tips: ['미역 요오드+칼슘과 소고기 철분의 영양 보완', '저칼로리·고미네랄'],
+        caution: ['갑상선항진·갑상선약 복용자: 미역 다량 섭취 주의 (FDA)'],
+        season: 'all', source: 'MFDS·NIH-ODS'
+      },
+      {
+        id: 'r11', title: '콩나물국', emoji: '🥣', time: 15, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['콩나물','대파','마늘','새우젓','고춧가루'],
+        nutrition: { kcal: 60, p: 6, c: 6, f: 1, fiber: 2, sodium: 540, sugar: 2, gi: 20 },
+        mealTime: ['breakfast','lunch','dinner'], goals: ['diet','general'],
+        allergens: ['대두','갑각류'],
+        steps: [
+          '콩나물 200g을 깨끗이 씻기',
+          '냄비에 물 2컵·콩나물·다진마늘·새우젓 1/2작은술',
+          '뚜껑 덮고 강불 5분 (뚜껑 열면 비린내)',
+          '뚜껑 열어 5분 더 끓임',
+          '고춧가루·대파로 마무리'
+        ],
+        tips: ['콩나물의 아스파라긴이 알코올 대사 보조 (해장)', '저칼로리 다이어트 친화'],
+        caution: [],
+        season: 'all', source: 'MFDS'
+      },
+      {
+        id: 'r12', title: '닭볶음탕', emoji: '🍗', time: 45, difficulty: '보통',
+        servingNote: '1인분 기준', ingredients: ['닭다리살','감자','당근','양파','고추장','간장','마늘'],
+        nutrition: { kcal: 460, p: 28, c: 38, f: 18, fiber: 5, sodium: 980, sugar: 8, gi: 55 },
+        mealTime: ['lunch','dinner'], goals: ['muscle'],
+        allergens: ['대두'],
+        steps: [
+          '닭다리살 200g을 끓는 물에 1분 데쳐 기름·잡내 제거',
+          '양념: 고추장 1큰술·간장 1큰술·마늘·고춧가루·매실청',
+          '냄비에 닭과 양념 버무려 10분 재움',
+          '감자·당근을 큼직히 썰어 추가',
+          '물 1컵 부어 중불 25분 (감자 익을 때까지)',
+          '양파를 마지막 5분에 추가, 국물 졸이며 완성'
+        ],
+        tips: ['닭껍질 일부 제거 시 포화지방↓ (KSoLA)', '감자가 칼륨 공급'],
+        caution: ['당뇨자: 매실청 생략, 감자 양 절반으로 (KDA)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r13', title: '갈비탕', emoji: '🥘', time: 120, difficulty: '보통',
+        servingNote: '1인분 기준', ingredients: ['소갈비','무','대파','마늘','국간장','후추'],
+        nutrition: { kcal: 380, p: 26, c: 8, f: 26, fiber: 1, sodium: 920, sugar: 2, gi: 20 },
+        mealTime: ['lunch','dinner'], goals: ['muscle'],
+        allergens: [],
+        steps: [
+          '소갈비 250g을 찬물에 1시간 핏물 빼기',
+          '끓는 물에 1분 데쳐 기름·불순물 제거',
+          '깨끗한 물 5컵·대파 뿌리·마늘·통후추로 1시간 30분 푹 끓임',
+          '기름은 식혀서 굳혀 걷어내기',
+          '무를 한입 크기로 썰어 추가 후 30분',
+          '국간장으로 가볍게 간하고 대파·후추로 마무리'
+        ],
+        tips: ['기름 걷어내면 포화지방 30%↓ (KSoLA)', '국물보다 고기·무 위주 섭취'],
+        caution: ['고혈압·통풍자: 국물 섭취량 절제 (KSH)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r14', title: '닭가슴살 덮밥', emoji: '🍚', time: 20, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['닭가슴살','현미밥','양파','달걀','간장','참기름','파'],
+        nutrition: { kcal: 480, p: 34, c: 60, f: 10, fiber: 4, sodium: 680, sugar: 5, gi: 58 },
+        mealTime: ['lunch','dinner'], goals: ['muscle','general'],
+        allergens: ['계란','대두','글루텐'],
+        steps: [
+          '닭가슴살 120g을 깍둑썰기, 0.5g 소금 밑간',
+          '양파 1/2개 채썰어 팬에 1분 볶음',
+          '닭가슴살 추가 강불 3분',
+          '간장 1큰술·물 2큰술 넣어 자작하게',
+          '풀어둔 계란 1개를 둘러 익기 직전에 불 끔',
+          '현미밥 위에 얹고 참기름·파 마무리'
+        ],
+        tips: ['현미밥+단백질 조합으로 GI 완화 (KDA)', '계란을 반숙 상태로 두면 영양 보존'],
+        caution: [],
+        season: 'all', source: 'MFDS·KDA'
+      },
+      {
+        id: 'r15', title: '김치 콩나물밥', emoji: '🍚', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['현미밥','김치','콩나물','양념간장','참기름','파'],
+        nutrition: { kcal: 380, p: 12, c: 68, f: 6, fiber: 6, sodium: 820, sugar: 4, gi: 56 },
+        mealTime: ['lunch','dinner'], goals: ['general','diet'],
+        allergens: ['대두'],
+        steps: [
+          '쌀 1컵을 30분 불리기 (현미는 1시간)',
+          '김치 1/4쪽을 잘게 썰어 참기름에 1분 볶음',
+          '콩나물 한줌·김치·쌀을 솥에 넣고 물 1컵',
+          '강불 끓다 약불 12분, 뜸 10분',
+          '양념간장: 간장 1큰술·고춧가루·다진파·참기름·깨',
+          '비벼 먹기'
+        ],
+        tips: ['김치 발효산이 콩나물 비타민 보존', '양념간장은 1/2큰술만 비벼도 충분'],
+        caution: ['고혈압자: 김치를 살짝 헹궈 사용 (KSH)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r16', title: '잔치국수', emoji: '🍜', time: 20, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['소면','멸치다시마육수','애호박','당근','계란지단','대파','김'],
+        nutrition: { kcal: 380, p: 14, c: 64, f: 6, fiber: 3, sodium: 1080, sugar: 4, gi: 70 },
+        mealTime: ['lunch'], goals: ['general'],
+        allergens: ['글루텐','계란','갑각류'],
+        steps: [
+          '멸치·다시마 육수 3컵 만들기 (10분)',
+          '애호박·당근 채썰어 1분씩 볶음',
+          '계란지단 부쳐 채썰기',
+          '소면 100g을 끓는 물에 3분 삶아 찬물에 헹굼',
+          '그릇에 면을 담고 뜨거운 육수 부음',
+          '고명을 가지런히 올리고 김·대파 마무리'
+        ],
+        tips: ['통밀국수로 대체 시 식이섬유↑·GI↓', '국물의 1/2만 마시면 나트륨 절감'],
+        caution: ['당뇨자: 면 양 70g으로 줄이고 채소량↑ (KDA)'],
+        season: 'all', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r17', title: '호박죽', emoji: '🥣', time: 40, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['단호박','찹쌀가루','우유','꿀','소금'],
+        nutrition: { kcal: 260, p: 6, c: 56, f: 2, fiber: 5, sodium: 60, sugar: 18, gi: 55 },
+        mealTime: ['breakfast','snack'], goals: ['general'],
+        allergens: ['우유'],
+        steps: [
+          '단호박 1/2개를 찜기에 15분 푹 찌기',
+          '껍질 벗기고 핸드블렌더로 곱게 갈기',
+          '냄비에 호박퓌레·우유 2컵·소금 약간',
+          '약불로 저으며 5분 끓임',
+          '찹쌀가루 2큰술을 물에 풀어 둘러 넣음',
+          '걸쭉해지면 꿀 1/2큰술로 단맛 조절'
+        ],
+        tips: ['호박 베타카로틴이 우유 지방과 함께 흡수↑ (NIH-ODS)', '식이섬유 5g 풍부'],
+        caution: ['당뇨자: 꿀 생략, 단맛은 호박 자체로 (KDA)'],
+        season: '가을·겨울', source: 'MFDS·한식진흥원'
+      },
+      {
+        id: 'r18', title: '저염 시금치 무침', emoji: '🥬', time: 10, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['시금치','마늘','참기름','국간장','깨'],
+        nutrition: { kcal: 50, p: 3, c: 4, f: 3, fiber: 3, sodium: 180, sugar: 1, gi: 15 },
+        mealTime: ['lunch','dinner','breakfast'], goals: ['diet','general','hypertension'],
+        allergens: [],
+        steps: [
+          '시금치 한단을 다듬어 끓는 물에 30초 데치기',
+          '찬물에 헹궈 물기 꽉 짜기',
+          '한입 크기로 썰기',
+          '다진마늘 1/2작은술·참기름 1/2작은술·국간장 1/3작은술',
+          '손으로 살살 무치며 깨 뿌림'
+        ],
+        tips: ['데친 시금치+레몬즙 추가 시 비타민C 보존', '국간장보다 새우젓이 칼륨↑ 나트륨↓'],
+        caution: ['와파린 복용자: 비타민K 다량 주의 (FDA)'],
+        season: 'all', source: 'MFDS·NIH-ODS'
+      },
+      {
+        id: 'r19', title: '두부 부침', emoji: '🍳', time: 12, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['두부','부침가루','계란','쪽파','참기름'],
+        nutrition: { kcal: 220, p: 18, c: 12, f: 12, fiber: 1, sodium: 380, sugar: 1, gi: 30 },
+        mealTime: ['breakfast','lunch','dinner'], goals: ['general','muscle'],
+        allergens: ['대두','계란','글루텐'],
+        steps: [
+          '두부 1모를 1cm 두께로 썰어 키친타월로 물기 제거',
+          '부침가루를 살짝 입히고 푼 계란에 담그기',
+          '팬에 참기름 1작은술 둘러 약중불',
+          '두부를 양면 2분씩 노릇하게',
+          '쪽파 송송 얹고 양념간장 곁들임'
+        ],
+        tips: ['계란옷이 두부 단백질 보강', '기름 흡수 적은 약중불 추천'],
+        caution: [],
+        season: 'all', source: 'MFDS'
+      },
+      {
+        id: 'r20', title: '토마토 파스타', emoji: '🍝', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['통밀파스타','방울토마토','마늘','올리브유','바질','파마산'],
+        nutrition: { kcal: 460, p: 16, c: 70, f: 14, fiber: 8, sodium: 380, sugar: 8, gi: 50 },
+        mealTime: ['lunch','dinner'], goals: ['cholesterol','general'],
+        allergens: ['글루텐','우유'],
+        steps: [
+          '통밀파스타 80g을 끓는 물(소금 1작은술)에 8분 삶기',
+          '마늘 3쪽을 편썰고 방울토마토 10개 반으로 자르기',
+          '팬에 올리브유 1.5큰술·마늘 향 내기',
+          '토마토 추가 5분 으깨며 볶음',
+          '면수 2큰술·삶은 파스타 추가 1분 버무림',
+          '바질·파마산으로 마무리'
+        ],
+        tips: ['토마토 라이코펜이 올리브유로 흡수 2~3배↑ (NIH-ODS)', '통밀로 식이섬유↑·GI↓'],
+        caution: ['글루텐 민감자: 글루텐프리 파스타 사용'],
+        season: 'all', source: 'NIH-ODS·KSoLA'
+      },
+      {
+        id: 'r21', title: '그릭 요거트 베리볼', emoji: '🫐', time: 5, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['그릭요거트','블루베리','딸기','아몬드','꿀','오트밀'],
+        nutrition: { kcal: 280, p: 18, c: 30, f: 10, fiber: 6, sodium: 60, sugar: 16, gi: 40 },
+        mealTime: ['breakfast','snack'], goals: ['diet','general','muscle'],
+        allergens: ['우유','견과'],
+        steps: [
+          '그릭요거트(무가당) 150g을 그릇에 담기',
+          '블루베리·딸기 한 줌씩 토핑',
+          '아몬드 8g을 살짝 부숴 뿌림',
+          '오트밀 2큰술 추가',
+          '꿀 1/2작은술 드리즐 (생략 가능)'
+        ],
+        tips: ['프로바이오틱스+섬유질+항산화 시너지', '아침 식사로 고단백 시작'],
+        caution: ['항생제 복용 시 2시간 간격 (FDA)'],
+        season: 'all', source: 'NIH-ODS'
+      },
+      {
+        id: 'r22', title: '통밀 에그 샌드위치', emoji: '🥪', time: 15, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['통밀빵','계란','양상추','토마토','오이','머스터드'],
+        nutrition: { kcal: 380, p: 22, c: 42, f: 14, fiber: 7, sodium: 520, sugar: 5, gi: 50 },
+        mealTime: ['breakfast','lunch','snack'], goals: ['diet','general'],
+        allergens: ['글루텐','계란'],
+        steps: [
+          '계란 2개를 8분 삶아 슬라이스',
+          '통밀빵 2장을 살짝 토스트',
+          '양상추·토마토·오이 슬라이스 준비',
+          '머스터드 1작은술을 빵 한 면에 펴기',
+          '계란·채소 차곡차곡 쌓기',
+          '대각선으로 잘라 완성'
+        ],
+        tips: ['마요 대신 머스터드로 포화지방·칼로리 절감 (KSoLA)', '통밀빵 식이섬유 7g'],
+        caution: [],
+        season: 'all', source: 'KSoLA·NIH'
+      },
+      {
+        id: 'r23', title: '두부 스크램블', emoji: '🍳', time: 10, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['두부','강황','시금치','마늘','올리브유','후추'],
+        nutrition: { kcal: 200, p: 18, c: 8, f: 12, fiber: 4, sodium: 220, sugar: 2, gi: 15 },
+        mealTime: ['breakfast','lunch'], goals: ['diet','diabetes','muscle','cholesterol'],
+        allergens: ['대두'],
+        steps: [
+          '두부 1/2모의 물기를 꽉 짜고 으깨기',
+          '시금치 한 줌을 한입 크기로 썰기',
+          '팬에 올리브유 1작은술·다진마늘',
+          '두부 추가 강불 2분 볶음',
+          '강황 1/4작은술·후추',
+          '시금치 30초 익히고 마무리'
+        ],
+        tips: ['강황+후추가 커큐민 흡수율 ~2000%↑ (Linus Pauling)', '저GI·고단백 다이어트 친화'],
+        caution: ['항응고제 복용자: 강황 양 절제 (FDA)'],
+        season: 'all', source: 'Linus Pauling·MFDS'
+      },
+      {
+        id: 'r24', title: '귀리 오트밀', emoji: '🥣', time: 8, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['오트밀','우유','바나나','시나몬','호두'],
+        nutrition: { kcal: 320, p: 12, c: 50, f: 9, fiber: 7, sodium: 80, sugar: 14, gi: 55 },
+        mealTime: ['breakfast'], goals: ['cholesterol','diet','general'],
+        allergens: ['우유','견과','글루텐'],
+        steps: [
+          '오트밀 50g·우유 1컵을 냄비에',
+          '약불로 저으며 5분 (걸쭉해질 때까지)',
+          '시나몬 한 꼬집',
+          '바나나 1/2개를 슬라이스해 토핑',
+          '호두 8g을 부숴 뿌림'
+        ],
+        tips: ['귀리 베타글루칸이 LDL 콜레스테롤 저하 (KSoLA)', '바나나 칼륨이 나트륨 배설 (KSH)'],
+        caution: [],
+        season: 'all', source: 'KSoLA·KSH'
+      },
+      {
+        id: 'r25', title: '닭가슴살 채소 스테이크', emoji: '🍗', time: 25, difficulty: '쉬움',
+        servingNote: '1인분 기준', ingredients: ['닭가슴살','브로콜리','파프리카','버섯','올리브유','로즈마리','후추'],
+        nutrition: { kcal: 320, p: 38, c: 12, f: 12, fiber: 5, sodium: 280, sugar: 4, gi: 20 },
+        mealTime: ['lunch','dinner'], goals: ['diet','muscle','diabetes','cholesterol'],
+        allergens: [],
+        steps: [
+          '닭가슴살 150g에 0.7g 소금·후추·로즈마리 밑간 (15분)',
+          '브로콜리·파프리카·버섯을 한입 크기로 썰기',
+          '팬에 올리브유 1작은술, 닭가슴살 한 면 4분',
+          '뒤집고 채소 추가 4분',
+          '뚜껑 덮어 약불 2분 (속까지 익힘)',
+          '도마에서 5분 레스팅 후 썰어 플레이팅'
+        ],
+        tips: ['고단백·저GI·저나트륨 — 다이어트·당뇨·근육 모두 적합', '레스팅으로 육즙 유지'],
+        caution: [],
+        season: 'all', source: 'MFDS·KDA'
+      }
     ];
 
     // ============== FOOD INTERACTION DB (의학적 검증 기반) ==============
@@ -2367,6 +2822,7 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         targetProtein: Math.round(w * 1.2),
         targetCarb: Math.round(tdee * 0.5 / 4),
         targetFat: Math.round(tdee * 0.25 / 9),
+        allergies: [],            // 식약처 8대 알레르겐 — 프로필 화면에서 토글 (레시피 자동 제외에 사용)
         createdAt: new Date().toISOString()
       };
 
@@ -2559,16 +3015,19 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       // Recipe recs
       const recDiv = document.getElementById('homeRecipes');
       const recs = pickRecipes(3);
-      recDiv.innerHTML = recs.map(r => `
-        <div class="list-item" onclick="openRecipeDetail('${r.id}')" style="cursor:pointer;">
+      recDiv.innerHTML = recs.map(r => {
+        const reason = (r.reasons || [])[0];
+        return `
+        <div class="list-item" onclick="openRecipeDetail(${escapeJsAttr(r.id)})" style="cursor:pointer;">
           <div class="list-icon">${r.emoji}</div>
           <div class="list-main">
-            <div class="list-title">${r.title}</div>
-            <div class="list-sub">${r.time}분 · ${r.difficulty} · ${r.kcal} kcal</div>
+            <div class="list-title">${escapeHtml(r.title)}</div>
+            <div class="list-sub">${r.time}분 · ${escapeHtml(r.difficulty)} · ${r.nutrition?.kcal || 0} kcal${reason ? ` · 💡 ${escapeHtml(reason)}` : ''}</div>
           </div>
           <div class="list-right" style="font-size:18px;">›</div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function sumNutri(arr, key) {
@@ -5062,68 +5521,314 @@ JSON 형식:
       renderRecipes();
     }
 
-    function pickRecipes(n) {
-      const currentIngredients = new Set(state.inventory.filter(i => !i.consumed).map(i => i.name));
+    // ============== USER PATTERN ANALYSIS ==============
+    // 최근 7일 식사·재고·프로필을 분석해 추천 가중치를 계산할 컨텍스트 생성
+    function analyzeUserPattern() {
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 86400000);
+      const recent = (state.meals || []).filter(m => new Date(m.consumed_at) >= weekAgo);
+
+      // 7일 평균 영양
+      const days = Math.max(1, Math.min(7, recent.length > 0 ? new Set(recent.map(m => localDateKey(m.consumed_at))).size : 1));
+      const sum = { p: 0, c: 0, f: 0, fiber: 0, sodium: 0, sugar: 0, kcal: 0 };
+      recent.forEach(m => {
+        sum.p += m.total_protein_g || 0; sum.c += m.total_carb_g || 0;
+        sum.f += m.total_fat_g || 0; sum.fiber += m.total_fiber_g || 0;
+        sum.sodium += m.total_sodium_mg || 0; sum.sugar += m.total_sugar_g || 0;
+        sum.kcal += m.total_kcal || 0;
+      });
+      const avg = {
+        p: sum.p / days, c: sum.c / days, f: sum.f / days,
+        fiber: sum.fiber / days, sodium: sum.sodium / days,
+        sugar: sum.sugar / days, kcal: sum.kcal / days
+      };
+
+      // 권장 대비 부족·과잉 판정 (성인 일반 기준 — 출처 KDA·KSH·WHO·NIH)
+      const target = state.profile || {};
+      const needs = {
+        protein:  avg.p     < (target.targetProtein || 60) * 0.8 ? 'low' : (avg.p > (target.targetProtein || 60) * 1.2 ? 'high' : 'ok'),
+        fiber:    avg.fiber < 20  ? 'low'  : (avg.fiber > 40  ? 'high' : 'ok'),
+        sodium:   avg.sodium > 2000 ? 'high' : (avg.sodium < 800 ? 'low' : 'ok'),
+        sugar:    avg.sugar > 50   ? 'high' : 'ok',
+        kcal:     avg.kcal < (target.targetKcal || 2000) * 0.8 ? 'low' : (avg.kcal > (target.targetKcal || 2000) * 1.15 ? 'high' : 'ok')
+      };
+
+      // 최근 자주 먹은 음식 (다양성 가중치)
+      const nameCount = {};
+      recent.forEach(m => (m.items || []).forEach(it => {
+        if (!it.name) return;
+        nameCount[it.name] = (nameCount[it.name] || 0) + 1;
+      }));
+      const recentNames = new Set(Object.keys(nameCount));
+
+      // 빠진 끼니 (오늘 기준, 시간대 추천용)
+      const todayKey = localDateKey();
+      const todayMeals = (state.meals || []).filter(m => localDateKey(m.consumed_at) === todayKey);
+      const todayTypes = new Set(todayMeals.map(m => m.meal_type));
+      const hr = now.getHours();
+      const currentTime = hr < 11 ? 'breakfast' : hr < 15 ? 'lunch' : hr < 20 ? 'dinner' : 'snack';
+
+      // 만료 임박 재고
+      const expiringItems = new Set(
+        (state.inventory || [])
+          .filter(i => !i.consumed && i.expiry && daysUntil(i.expiry) <= 3 && daysUntil(i.expiry) >= 0)
+          .map(i => i.name)
+      );
+
+      // 보유 재료
+      const currentIngredients = new Set((state.inventory || []).filter(i => !i.consumed).map(i => i.name));
+
+      // 사용자 caution 그룹
+      const cautionGroups = [];
+      if (target.has_diabetes || target.goal === 'diabetes') cautionGroups.push('당뇨');
+      if (target.has_hypertension) cautionGroups.push('고혈압');
+      if (target.is_pregnant) cautionGroups.push('임산부');
+      if (target.is_lactating) cautionGroups.push('수유부');
+
+      // 알레르기
+      const allergies = new Set(target.allergies || []);
+
+      return {
+        avg, needs, recentNames, todayTypes, currentTime,
+        expiringItems, currentIngredients, cautionGroups, allergies,
+        goal: target.goal || 'general'
+      };
+    }
+
+    // 가중치 스코어링 추천 — 영양 부족 보충 + 목표 + 만료 활용 + 시간대 + 다양성 + 알레르기 회피
+    function pickRecipesV2(n, ctx) {
+      ctx = ctx || analyzeUserPattern();
       const scored = RECIPES.map(r => {
-        const matched = r.ingredients.filter(ing => currentIngredients.has(ing)).length;
-        return { ...r, matched, matchPct: matched / r.ingredients.length };
-      }).sort((a,b) => b.matchPct - a.matchPct);
-      return scored.slice(0, n);
+        // 1) 알레르기 매칭은 우선 제외 처리 (-100)
+        const blockedByAllergy = (r.allergens || []).some(a => ctx.allergies.has(a));
+
+        // 2) 보유 재료 매칭 (max 20)
+        const matched = r.ingredients.filter(ing => ctx.currentIngredients.has(ing)).length;
+        const matchPct = matched / r.ingredients.length;
+        const sIngredient = matchPct * 20;
+
+        // 3) 영양 부족 보충 (max 25)
+        let sNutrition = 0;
+        const reasons = [];
+        if (ctx.needs.protein === 'low' && r.nutrition.p >= 20) {
+          sNutrition += 12; reasons.push('단백질 부족 보충');
+        }
+        if (ctx.needs.fiber === 'low' && r.nutrition.fiber >= 5) {
+          sNutrition += 8; reasons.push('식이섬유 부족 보충');
+        }
+        if (ctx.needs.sodium === 'high' && r.nutrition.sodium <= 500) {
+          sNutrition += 8; reasons.push('저염 권장');
+        }
+        if (ctx.needs.sugar === 'high' && r.nutrition.sugar <= 8) {
+          sNutrition += 6; reasons.push('저당 권장');
+        }
+        if (ctx.needs.kcal === 'high' && r.nutrition.kcal <= 350) {
+          sNutrition += 5; reasons.push('칼로리 조절');
+        }
+        if (ctx.needs.kcal === 'low' && r.nutrition.kcal >= 400) {
+          sNutrition += 4; reasons.push('에너지 보충');
+        }
+        sNutrition = Math.min(25, sNutrition);
+
+        // 4) 목표 적합도 (max 20)
+        let sGoal = 0;
+        if ((r.goals || []).includes(ctx.goal)) {
+          sGoal = 20; reasons.push(goalLabel(ctx.goal) + ' 목표 적합');
+        } else if ((r.goals || []).includes('general')) {
+          sGoal = 8;
+        }
+
+        // 5) 만료 임박 재료 활용 (max 15)
+        const expUsed = r.ingredients.filter(ing => ctx.expiringItems.has(ing)).length;
+        const sExpire = expUsed > 0 ? Math.min(15, 8 + expUsed * 4) : 0;
+        if (expUsed > 0) reasons.push(`만료임박 ${expUsed}개 활용`);
+
+        // 6) 시간대 적합 (max 10)
+        const sTime = (r.mealTime || []).includes(ctx.currentTime) ? 10 : 0;
+
+        // 7) 다양성 — 최근 7일 안 먹은 메뉴 (max 10)
+        const isRepeat = ctx.recentNames.has(r.title) || (r.ingredients || []).some(ing => ctx.recentNames.has(ing));
+        const sDiverse = isRepeat ? 0 : 10;
+        if (!isRepeat && ctx.recentNames.size >= 3) reasons.push('다양성');
+
+        const total = blockedByAllergy ? -100 : (sIngredient + sNutrition + sGoal + sExpire + sTime + sDiverse);
+
+        return {
+          ...r,
+          matched,
+          matchPct,
+          usesExpiring: expUsed > 0,
+          allergyBlocked: blockedByAllergy,
+          score: total,
+          reasons,
+          // caution 매칭은 점수 미감산, UI 경고만 남김
+          cautionMatch: (r.caution || []).filter(c => ctx.cautionGroups.some(g => c.includes(g)))
+        };
+      });
+
+      // 알레르기 차단 항목은 추천에서 제외
+      const eligible = scored.filter(r => !r.allergyBlocked);
+      eligible.sort((a, b) => b.score - a.score);
+      return eligible.slice(0, n);
+    }
+
+    // 한글 목표 라벨 (renderRecipes·pickRecipesV2 공유)
+    function goalLabel(goal) {
+      return ({
+        diet: '다이어트', muscle: '근육', diabetes: '혈당',
+        hypertension: '고혈압', cholesterol: '콜레스테롤', general: '균형'
+      })[goal] || '균형';
+    }
+
+    // 호환: 기존 호출자(renderHome)는 pickRecipes(n)을 사용 중
+    function pickRecipes(n) { return pickRecipesV2(n); }
+
+    // 영양 배지 — recipe.nutrition 기반 자동 산출 (저염·고단백·고섬유·저GI 등)
+    function nutritionBadges(r) {
+      const n = r.nutrition || {};
+      const badges = [];
+      if (n.sodium != null && n.sodium <= 500) badges.push({ label: '저염', cls: 'badge-fiber' });
+      if (n.p != null && n.p >= 25) badges.push({ label: '고단백', cls: 'badge-protein' });
+      if (n.fiber != null && n.fiber >= 6) badges.push({ label: '고섬유', cls: 'badge-fiber' });
+      if (n.gi != null && n.gi <= 35) badges.push({ label: '저GI', cls: 'badge-carb' });
+      if (n.f != null && n.f <= 8 && n.kcal <= 350) badges.push({ label: '저지방', cls: 'badge-fat' });
+      return badges;
     }
 
     function renderRecipes() {
-      const currentIngredients = new Set(state.inventory.filter(i => !i.consumed).map(i => i.name));
-      const expiringSet = new Set(state.inventory.filter(i => !i.consumed && i.expiry && daysUntil(i.expiry) <= 3).map(i => i.name));
-      let recipes = RECIPES.map(r => {
-        const matched = r.ingredients.filter(ing => currentIngredients.has(ing)).length;
-        const usesExpiring = r.ingredients.some(ing => expiringSet.has(ing));
-        return { ...r, matched, usesExpiring, matchPct: matched / r.ingredients.length };
-      });
+      // 모든 추천이 패턴 기반 — 한 번 계산해서 재사용
+      const ctx = analyzeUserPattern();
+      let recipes = pickRecipesV2(RECIPES.length, ctx);
 
-      if (recipeTab === 'available') recipes = recipes.filter(r => r.matchPct >= 0.6).sort((a,b) => b.matchPct - a.matchPct);
+      // 탭 필터 (추천 점수 기반 정렬은 유지)
+      if (recipeTab === 'available') recipes = recipes.filter(r => r.matchPct >= 0.5);
       else if (recipeTab === 'expire') recipes = recipes.filter(r => r.usesExpiring);
       else if (recipeTab === 'goal') {
-        const goalTag = { diet: '다이어트', diabetes: '당뇨', muscle: '근육', general: '균형' }[state.profile?.goal || 'general'];
-        recipes = recipes.filter(r => r.tags.some(t => t.includes(goalTag.substring(0,2))));
+        recipes = recipes.filter(r => (r.goals || []).includes(ctx.goal) || (r.goals || []).includes('general'));
       }
 
       const list = document.getElementById('recipeList');
       if (recipes.length === 0) {
-        list.innerHTML = `<div class="empty"><span class="icon">🍳</span><div class="text">조건에 맞는 레시피가 없어요</div></div>`;
+        const allergyHint = ctx.allergies && ctx.allergies.size > 0
+          ? `<div style="font-size:11px; color:var(--muted); margin-top:6px;">알레르기 등록: ${[...ctx.allergies].join(', ')} — 해당 알레르겐 포함 레시피는 자동 제외됩니다</div>`
+          : '';
+        list.innerHTML = `<div class="empty"><span class="icon">🍳</span><div class="text">조건에 맞는 레시피가 없어요</div>${allergyHint}</div>`;
         return;
       }
-      list.innerHTML = recipes.map(r => `
-        <div class="recipe-card" onclick="openRecipeDetail('${r.id}')">
+      list.innerHTML = recipes.map(r => {
+        const badges = nutritionBadges(r);
+        const reasonText = (r.reasons || []).slice(0, 2).join(' · ');
+        const cautionText = (r.cautionMatch || []).length > 0 ? '⚠️ 주의 안내' : '';
+        return `
+        <div class="recipe-card" onclick="openRecipeDetail(${escapeJsAttr(r.id)})">
           <div class="recipe-head" style="background: linear-gradient(135deg, #065f46, #0f766e);">${r.emoji}</div>
           <div class="recipe-body">
-            <div class="recipe-title">${r.title}</div>
-            <div class="recipe-meta">⏱ ${r.time}분 · ${r.difficulty} · ${r.kcal}kcal · 재료 ${r.matched}/${r.ingredients.length}</div>
-            <div class="chips">
-              ${r.tags.map(t => `<span class="chip">${t}</span>`).join('')}
+            <div class="recipe-title">${escapeHtml(r.title)}</div>
+            <div class="recipe-meta">⏱ ${r.time}분 · ${escapeHtml(r.difficulty)} · ${r.nutrition.kcal}kcal · 재료 ${r.matched}/${r.ingredients.length}</div>
+            <div class="chips" style="margin-top:6px;">
+              ${badges.map(b => `<span class="chip" style="background:rgba(16,185,129,.15); color:#6ee7b7;">${b.label}</span>`).join('')}
               ${r.usesExpiring ? '<span class="chip warn">⚠️ 만료임박 활용</span>' : ''}
+              ${cautionText ? `<span class="chip" style="background:rgba(245,158,11,.15); color:#fcd34d;">${cautionText}</span>` : ''}
             </div>
+            ${reasonText ? `<div style="margin-top:6px; font-size:11px; color:#6ee7b7; font-weight:600;">💡 ${escapeHtml(reasonText)}</div>` : ''}
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function openRecipeDetail(id) {
       const r = RECIPES.find(x => x.id === id);
       if (!r) return;
-      const currentIngredients = new Set(state.inventory.filter(i => !i.consumed).map(i => i.name));
+      const ctx = analyzeUserPattern();
+      const currentIngredients = ctx.currentIngredients;
       const missing = r.ingredients.filter(ing => !currentIngredients.has(ing));
+      const badges = nutritionBadges(r);
+      const n = r.nutrition || {};
+
+      // 알레르기 매칭 (사용자 프로필 기준)
+      const userAllergens = (r.allergens || []).filter(a => ctx.allergies.has(a));
+      // 사용자 caution 그룹 매칭
+      const cautionMatch = (r.caution || []).filter(c => ctx.cautionGroups.some(g => c.includes(g)));
+
       const m = document.getElementById('modalContent');
       m.innerHTML = `
         <div class="modal-handle"></div>
-        <div style="text-align:center; font-size:64px; margin-bottom:12px;">${r.emoji}</div>
-        <div class="modal-title" style="text-align:center;">${r.title}</div>
-        <div style="text-align:center; color:var(--muted); font-size:13px; margin-bottom:16px;">⏱ ${r.time}분 · ${r.difficulty} · ${r.kcal} kcal</div>
+        <div style="text-align:center; font-size:64px; margin-bottom:8px;">${r.emoji}</div>
+        <div class="modal-title" style="text-align:center;">${escapeHtml(r.title)}</div>
+        <div style="text-align:center; color:var(--muted); font-size:13px; margin-bottom:6px;">
+          ⏱ ${r.time}분 · ${escapeHtml(r.difficulty)} · ${n.kcal} kcal
+          ${r.servingNote ? ` · ${escapeHtml(r.servingNote)}` : ''}
+        </div>
+
+        ${badges.length ? `
+          <div class="chips" style="justify-content:center; margin-bottom:14px;">
+            ${badges.map(b => `<span class="chip" style="background:rgba(16,185,129,.15); color:#6ee7b7;">${b.label}</span>`).join('')}
+          </div>
+        ` : '<div style="height:14px"></div>'}
+
+        ${userAllergens.length ? `
+          <div style="margin-bottom:12px; padding:10px 12px; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.3); border-radius:10px; font-size:12px; color:#fca5a5; line-height:1.6;">
+            🚫 <b>알레르기 주의</b> · 사용자 프로필에 등록된 <b>${userAllergens.map(a => escapeHtml(a)).join(', ')}</b> 포함. 섭취 전 반드시 확인하세요.
+          </div>
+        ` : ''}
+
+        ${cautionMatch.length ? `
+          <div style="margin-bottom:12px; padding:10px 12px; background:rgba(245,158,11,.1); border-left:3px solid #f59e0b; border-radius:8px; font-size:11.5px; color:#fcd34d; line-height:1.65;">
+            ⚠️ <b>건강 상태 주의</b><br>
+            ${cautionMatch.map(c => `• ${escapeHtml(c)}`).join('<br>')}
+          </div>
+        ` : ''}
+
+        <div class="card-title">🥗 영양 (${escapeHtml(r.servingNote || '1인분 기준')})</div>
+        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:14px;">
+          <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
+            <div style="font-size:10px; color:var(--muted);">칼로리</div>
+            <div style="font-size:14px; font-weight:700;">${n.kcal || 0}</div>
+            <div style="font-size:9px; color:var(--muted);">kcal</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
+            <div style="font-size:10px; color:var(--muted);">단백질</div>
+            <div style="font-size:14px; font-weight:700; color:#a78bfa;">${n.p || 0}</div>
+            <div style="font-size:9px; color:var(--muted);">g</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
+            <div style="font-size:10px; color:var(--muted);">탄수</div>
+            <div style="font-size:14px; font-weight:700; color:#fbbf24;">${n.c || 0}</div>
+            <div style="font-size:9px; color:var(--muted);">g</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
+            <div style="font-size:10px; color:var(--muted);">지방</div>
+            <div style="font-size:14px; font-weight:700; color:#fb923c;">${n.f || 0}</div>
+            <div style="font-size:9px; color:var(--muted);">g</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
+            <div style="font-size:10px; color:var(--muted);">섬유</div>
+            <div style="font-size:14px; font-weight:700; color:#34d399;">${n.fiber || 0}</div>
+            <div style="font-size:9px; color:var(--muted);">g</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
+            <div style="font-size:10px; color:var(--muted);">나트륨</div>
+            <div style="font-size:14px; font-weight:700; color:#f87171;">${n.sodium || 0}</div>
+            <div style="font-size:9px; color:var(--muted);">mg</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
+            <div style="font-size:10px; color:var(--muted);">당</div>
+            <div style="font-size:14px; font-weight:700; color:#f472b6;">${n.sugar || 0}</div>
+            <div style="font-size:9px; color:var(--muted);">g</div>
+          </div>
+          <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
+            <div style="font-size:10px; color:var(--muted);">GI</div>
+            <div style="font-size:14px; font-weight:700; color:#60a5fa;">${n.gi != null ? n.gi : '-'}</div>
+            <div style="font-size:9px; color:var(--muted);">${n.gi != null && n.gi <= 55 ? '낮음' : (n.gi != null && n.gi <= 70 ? '중간' : '높음')}</div>
+          </div>
+        </div>
 
         <div class="card-title">🥕 필요 재료</div>
         ${r.ingredients.map(ing => `
           <div class="list-item">
             <div class="list-icon">${FOOD_EMOJI[ing] || '📦'}</div>
-            <div class="list-main"><div class="list-title">${ing}</div></div>
+            <div class="list-main"><div class="list-title">${escapeHtml(ing)}</div></div>
             <div class="list-right">
               ${currentIngredients.has(ing) ? '<span class="list-tag tag-expire-ok">보유</span>' : '<span class="list-tag tag-expire-soon">부족</span>'}
             </div>
@@ -5132,18 +5837,41 @@ JSON 형식:
 
         ${missing.length > 0 ? `
           <div style="height:12px"></div>
-          <button class="btn btn-ghost" onclick='addMissingToShop(${JSON.stringify(missing)})'>🛒 부족한 ${missing.length}개 장보기 추가</button>
+          <button class="btn btn-ghost" onclick='addMissingToShop(${JSON.stringify(missing).replace(/</g,'\\u003c')})'>🛒 부족한 ${missing.length}개 장보기 추가</button>
         ` : ''}
 
-        <div style="height:12px"></div>
+        ${(r.allergens || []).length ? `
+          <div style="margin-top:14px; padding:8px 10px; background:rgba(0,0,0,.2); border-radius:8px; font-size:11px; color:var(--muted);">
+            <b>알레르기 정보:</b> ${r.allergens.map(a => escapeHtml(a)).join(' · ')}
+          </div>
+        ` : ''}
+
+        <div style="height:14px"></div>
         <div class="card-title">📝 조리법</div>
-        <ol style="padding-left:20px; color:var(--text); font-size:14px; line-height:1.8;">
-          <li>재료를 씻고 손질해 준비합니다.</li>
-          <li>팬을 중불로 달군 후 기름을 두릅니다.</li>
-          <li>주재료를 볶거나 익혀주세요.</li>
-          <li>양념을 넣고 버무려 마무리합니다.</li>
-          <li>그릇에 담아 완성합니다! 🎉</li>
+        <ol style="padding-left:20px; color:var(--text); font-size:14px; line-height:1.8; margin-bottom:14px;">
+          ${(r.steps || []).map(s => `<li>${escapeHtml(s)}</li>`).join('')}
         </ol>
+
+        ${(r.tips || []).length ? `
+          <div class="card-title">💡 영양·건강 팁</div>
+          <ul style="padding-left:20px; color:var(--text); font-size:13px; line-height:1.7; margin-bottom:14px;">
+            ${r.tips.map(t => `<li>${escapeHtml(t)}</li>`).join('')}
+          </ul>
+        ` : ''}
+
+        ${(r.caution || []).length ? `
+          <div class="card-title">⚠️ 주의 안내</div>
+          <ul style="padding-left:20px; color:#fcd34d; font-size:12.5px; line-height:1.65; margin-bottom:14px;">
+            ${r.caution.map(c => `<li>${escapeHtml(c)}</li>`).join('')}
+          </ul>
+        ` : ''}
+
+        <div style="margin-top:8px; padding:10px 12px; background:rgba(245,158,11,.06); border-left:3px solid #f59e0b; border-radius:6px; font-size:10.5px; color:#fcd34d; line-height:1.65;">
+          ⚠️ <b>면책 고지</b> · 본 영양 정보는 ${escapeHtml(r.source || 'MFDS')} 등 가이드라인 기반의
+          <b>일반 권고</b>이며, 조리 방법·재료 중량·브랜드·계절·개인 체질에 따라 실제 값이 다를 수 있습니다.
+          알레르기·기저질환·임신·복용약 있는 분은 반드시 <b>의사·약사·영양사</b> 상담 권장.
+          <span style="opacity:.7;">(식품등의 표시·광고에 관한 법률상 효능·기능성 표시 아님)</span>
+        </div>
       `;
       openModal();
     }
@@ -5325,8 +6053,38 @@ JSON 형식:
           ks.innerHTML = '<span style="color:#f87171;">● 미연결 (모의 모드)</span>';
         }
       }
+      // 알레르기 칩 (8대 표준) — 토글로 추가/제거
+      renderAllergyChips();
       // Auto-run storage diagnostics
       runDiagnostics();
+    }
+
+    function renderAllergyChips() {
+      const wrap = document.getElementById('allergyChips');
+      if (!wrap) return;
+      // 기존 사용자 마이그레이션 — allergies 필드 누락 시 빈 배열로 초기화
+      if (!state.profile.allergies) state.profile.allergies = [];
+      const set = new Set(state.profile.allergies);
+      wrap.innerHTML = ALLERGEN_LIST.map(a => {
+        const on = set.has(a);
+        return `<button type="button" class="chip" onclick="toggleAllergy(${escapeJsAttr(a)})"
+          style="cursor:pointer; padding:6px 12px; border:1px solid ${on ? 'rgba(239,68,68,.5)' : 'rgba(255,255,255,.12)'};
+          background:${on ? 'rgba(239,68,68,.18)' : 'rgba(255,255,255,.04)'};
+          color:${on ? '#fca5a5' : 'var(--text)'}; font-weight:${on ? '700' : '500'};">
+          ${on ? '🚫 ' : ''}${escapeHtml(a)}
+        </button>`;
+      }).join('');
+    }
+
+    function toggleAllergy(a) {
+      if (!state.profile) return;
+      if (!state.profile.allergies) state.profile.allergies = [];
+      const idx = state.profile.allergies.indexOf(a);
+      if (idx >= 0) state.profile.allergies.splice(idx, 1);
+      else state.profile.allergies.push(a);
+      save();
+      renderAllergyChips();
+      showToast(idx >= 0 ? `${a} 알레르기 해제` : `🚫 ${a} 알레르기 등록`);
     }
 
     // Robustly open AI Studio URL - works in PWA standalone mode
