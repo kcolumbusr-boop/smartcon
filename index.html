@@ -982,7 +982,7 @@
   </section>
 
   <!-- INVENTORY -->
-  <div class="screen" id="screen-inventory">
+  <section class="screen" id="screen-inventory" aria-label="냉장고 재고">
     <h2 style="font-size:22px; font-weight:800; margin-bottom:4px;">🧊 냉장고</h2>
     <p style="color:var(--muted); font-size:13px; margin-bottom:16px;">재고를 한눈에, 만료는 미리</p>
 
@@ -1001,10 +1001,10 @@
     <div class="card">
       <div id="inventoryList"></div>
     </div>
-  </div>
+  </section>
 
   <!-- SHOPPING -->
-  <div class="screen" id="screen-shopping">
+  <section class="screen" id="screen-shopping" aria-label="장보기 목록">
     <h2 style="font-size:22px; font-weight:800; margin-bottom:4px;">🛒 장보기</h2>
     <p style="color:var(--muted); font-size:13px; margin-bottom:16px;">재고 기반 자동 생성 · 원클릭 주문</p>
 
@@ -1038,10 +1038,10 @@
       <div class="card-title">🏬 가격 비교</div>
       <div id="priceCompare"></div>
     </div>
-  </div>
+  </section>
 
   <!-- RECIPES -->
-  <div class="screen" id="screen-recipes">
+  <section class="screen" id="screen-recipes" aria-label="레시피">
     <h2 style="font-size:22px; font-weight:800; margin-bottom:4px;">👩‍🍳 레시피</h2>
     <p style="color:var(--muted); font-size:13px; margin-bottom:16px;">지금 있는 재료로 뭐 만들지?</p>
 
@@ -1054,10 +1054,10 @@
     </div>
 
     <div id="recipeList"></div>
-  </div>
+  </section>
 
   <!-- REPORT -->
-  <div class="screen" id="screen-report">
+  <section class="screen" id="screen-report" aria-label="주간 리포트">
     <h2 style="font-size:22px; font-weight:800; margin-bottom:4px;">📊 리포트</h2>
     <p style="color:var(--muted); font-size:13px; margin-bottom:16px;">식단 · 건강 · 상관 패턴 인사이트</p>
 
@@ -1088,10 +1088,10 @@
       <div class="card-title">💡 이번 주 인사이트</div>
       <div id="insights"></div>
     </div>
-  </div>
+  </section>
 
   <!-- PROFILE -->
-  <div class="screen" id="screen-profile">
+  <section class="screen" id="screen-profile" aria-label="프로필 및 설정">
     <h2 style="font-size:22px; font-weight:800; margin-bottom:16px;">👤 프로필</h2>
 
     <div class="card">
@@ -1421,7 +1421,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- BOTTOM NAV -->
   <nav class="bottom-nav" aria-label="주요 메뉴">
@@ -9665,6 +9665,15 @@ JSON 형식:
       // 메모리 회수: 모달이 닫히면 임시 사진(스캔용) 배열도 비움 — 영구 저장 X 정책 준수
       if (window.__scanImages) clearScanImages();
     }
+    // 접근성: Escape 키로 활성 모달 닫기
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const bd = document.getElementById('modalBackdrop');
+      if (bd && bd.classList.contains('active')) {
+        e.preventDefault();
+        closeModal();
+      }
+    });
 
     // ============== TOAST ==============
     let toastTimer = null;
