@@ -5978,8 +5978,9 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
             </div>
           </div>
           <div class="btn-row">
-            <button class="btn btn-primary" onclick='saveMeal(${JSON.stringify({items, t, scores, emoji})})'>✅ 식사 기록 저장</button>
-            <button class="btn btn-ghost" onclick="stopCamera(); document.getElementById('analysisResult').innerHTML=''">다시</button>
+            <button class="btn btn-primary" onclick='saveMeal(${JSON.stringify({items, t, scores, emoji})})' aria-label="식사 기록 저장">✅ 식사 기록 저장</button>
+            <button type="button" class="btn btn-ghost" onclick="shareAnalysis()" aria-label="분석 결과 공유">📤 공유</button>
+            <button class="btn btn-ghost" onclick="stopCamera(); document.getElementById('analysisResult').innerHTML=''" aria-label="다시 분석">다시</button>
           </div>
         </div>
       `;
@@ -6079,6 +6080,68 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       document.getElementById('analysisResult').innerHTML = '';
       stopCamera();
       goTo('home');
+    }
+
+    // 분석 결과를 텍스트로 요약 — 공유·복사 공통
+    function buildAnalysisShareText(cur) {
+      cur = cur || state.__currentAnalysis;
+      if (!cur || !cur.items) return '';
+      const t = cur.total || {};
+      const s = cur.scores || {};
+      const emoji = cur.emoji || '🍽';
+      const items = cur.items.map(i => `${i.name} ${Number(i.portion)||0}g`).join(', ');
+      const lines = [
+        `${emoji} ${items}`,
+        `🔥 ${Math.round(t.kcal || 0)} kcal · 단백 ${Math.round(t.p || 0)}g · 탄 ${Math.round(t.c || 0)}g · 지 ${Math.round(t.f || 0)}g`,
+        `🌾 섬유 ${Math.round(t.fiber || 0)}g · 🧂 나트륨 ${Math.round(t.sodium || 0)}mg · 🍯 당 ${Math.round(t.sugar || 0)}g`
+      ];
+      if (s.diet != null || s.diabetes != null || s.muscle != null) {
+        lines.push(`🎯 다이어트 ${s.diet || 0}점 · 혈당 ${s.diabetes || 0}점 · 근육 ${s.muscle || 0}점`);
+      }
+      lines.push('');
+      lines.push('— SmartCon · 빨이사오');
+      lines.push('https://kcolumbusr-boop.github.io/smartcon/');
+      return lines.join('\n');
+    }
+
+    // Web Share API 우선 → 미지원 시 클립보드 복사 → 모두 실패 시 다이얼로그
+    async function shareAnalysis() {
+      const text = buildAnalysisShareText();
+      if (!text) { showToast('공유할 분석 결과가 없어요'); return; }
+
+      // 1차: Web Share API (모바일 기본)
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'SmartCon 식단 분석', text });
+          showToast('📤 공유 완료');
+          return;
+        } catch (e) {
+          // AbortError = 사용자가 취소한 것 — 토스트만 무시
+          if (e.name === 'AbortError') return;
+          console.warn('[share] failed, falling back to clipboard', e);
+        }
+      }
+
+      // 2차: 클립보드 복사
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast('📋 클립보드에 복사됨');
+          return;
+        } catch (e) { console.warn('[share] clipboard failed', e); }
+      }
+
+      // 3차: 텍스트 보여주기 모달
+      const m = document.getElementById('modalContent');
+      m.innerHTML = `
+        <div class="modal-handle"></div>
+        <div class="modal-title">📋 분석 결과 텍스트</div>
+        <p style="color:var(--muted); font-size:12px; margin-bottom:10px;">아래 텍스트를 길게 눌러 복사하세요.</p>
+        <textarea readonly style="width:100%; min-height:200px; font-family:monospace; font-size:12px; padding:10px; background:rgba(0,0,0,.3); color:var(--text); border:1px solid rgba(255,255,255,.1); border-radius:8px;">${escapeHtml(text)}</textarea>
+        <div style="height:10px"></div>
+        <button class="btn btn-ghost" onclick="closeModal()">닫기</button>
+      `;
+      openModal();
     }
 
     // ============== INVENTORY ==============
