@@ -3647,7 +3647,7 @@
     });
 
     const GEMINI_PROMPT = `당신은 한국인의 식단을 분석하는 영양 전문가입니다.
-이 사진에 있는 모든 음식을 인식해주세요.
+이 사진(들)에 있는 모든 음식을 인식해주세요.
 
 규칙:
 - 접시 바닥 그림/무늬는 무시하고 실제 음식만 인식
@@ -3655,6 +3655,11 @@
 - 한국어 음식 이름 사용 (예: "딸기", "비빔밥", "김치찌개")
 - 양(g)은 사진의 크기·식기·손 등을 기준으로 현실적으로 추정
 - 모르는 음식이면 가장 가까운 일반명 사용
+
+⚠️ 여러 장의 사진이 함께 제공되면 같은 한 끼 식사를 다른 각도·접시 단위로 찍은 것입니다.
+- 모든 사진을 종합해 한 끼 통합 목록을 만드세요.
+- 같은 음식이 여러 사진에 보이면 한 번만 포함 (중복 제거).
+- 양(portion_g)은 가장 잘 보이는 사진 기준 추정.
 
 반드시 이 JSON 형식으로만 응답:
 {
@@ -3668,15 +3673,21 @@
 영양소 값은 portion_g 전체 양에 대한 값입니다.
 GI(혈당지수)는 대략값(0~100, 모르면 50).`;
 
-    // 단일 식품 분석 호출 (재시도 없음) — 내부용
-    async function _callGeminiFood(imageBase64, mimeType, apiKey, model) {
+    // 단일/다중 식품 분석 호출 (재시도 없음) — 내부용
+    // images: [{ base64, mimeType }] 또는 단일 base64 문자열 (역호환)
+    async function _callGeminiFood(images, mimeType, apiKey, model) {
+      const arr = (typeof images === 'string')
+        ? [{ base64: images, mimeType: mimeType || 'image/jpeg' }]
+        : (Array.isArray(images) ? images : []);
+      if (arr.length === 0) throw new Error('이미지가 없습니다');
+
+      const parts = arr.map(img => ({
+        inline_data: { mime_type: img.mimeType || 'image/jpeg', data: img.base64 }
+      }));
+      parts.push({ text: GEMINI_PROMPT });
+
       const body = {
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: mimeType || 'image/jpeg', data: imageBase64 } },
-            { text: GEMINI_PROMPT }
-          ]
-        }],
+        contents: [{ parts }],
         generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
       };
 
@@ -3734,7 +3745,8 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
     }
 
     // 공개 함수 — 지수 백오프 재시도 + 모델 폴백 (냉장고 스캔과 동일 전략)
-    async function analyzeWithGemini(imageBase64, apiKey, model, mimeType) {
+    // images: [{ base64, mimeType }] 또는 단일 base64 문자열 (역호환)
+    async function analyzeWithGemini(images, apiKey, model, mimeType) {
       const primaryModel = model || 'gemini-2.5-flash';
       const fallbackModel = primaryModel.includes('flash-lite') ? 'gemini-2.0-flash'
                           : primaryModel.includes('2.5-flash')  ? 'gemini-2.5-flash-lite'
@@ -3752,7 +3764,7 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       for (let attempt = 0; attempt < delays.length; attempt++) {
         try {
           if (attempt > 0) progress(`⏳ Gemini 재시도 ${attempt+1}/${delays.length} (서버 과부하 대기 중…)`);
-          return await _callGeminiFood(imageBase64, mimeType || 'image/jpeg', apiKey, primaryModel);
+          return await _callGeminiFood(images, mimeType || 'image/jpeg', apiKey, primaryModel);
         } catch (e) {
           lastErr = e;
           console.warn(`[food retry ${attempt+1}/${delays.length}] ${primaryModel} → status=${e.status}, retryable=${e.retryable}`);
@@ -3766,7 +3778,7 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         try {
           progress(`🔄 ${fallbackModel.replace('gemini-','')}로 전환 중…`);
           console.log('[food fallback]', primaryModel, '→', fallbackModel);
-          return await _callGeminiFood(imageBase64, mimeType || 'image/jpeg', apiKey, fallbackModel);
+          return await _callGeminiFood(images, mimeType || 'image/jpeg', apiKey, fallbackModel);
         } catch (e2) {
           console.error('[food fallback also failed]', fallbackModel, e2.status);
           throw lastErr;
@@ -4429,9 +4441,10 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         '<button class="btn btn-primary" onclick="takePhoto()">📷 촬영</button>' +
         '<button class="btn btn-ghost" onclick="document.getElementById(\'galleryInput\').click()">🖼 갤러리</button>';
       document.getElementById('analysisResult').innerHTML = '';
-      // 메모리 회수: 카메라 닫힐 때 분석 캐시(dataURL 포함)도 함께 정리
+      // 메모리 회수: 카메라 닫힐 때 분석 캐시(dataURL 포함)와 누적 사진도 정리
       state.__currentAnalysis = null;
       state.__lastAIResponse = null;
+      clearFoodImages();
     }
 
     function captureShot() {
@@ -5106,66 +5119,103 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
     }
 
     // AI-powered food analysis using Gemini Vision (with mock fallback)
-    async function analyzePhoto(imgDataUrl) {
+    // 한 끼 식사 다중 사진 누적 — 사용자가 "사진 더 추가" 누르면 누적, stopCamera/saveMeal에서 정리
+    const FOOD_MAX_IMAGES = 4;
+    function getFoodImages() { return window.__foodImages || (window.__foodImages = []); }
+    function clearFoodImages() { window.__foodImages = []; }
+
+    // input: dataURL 문자열 (새 사진을 누적) 또는 'reanalyze'(누적된 것 그대로 재분석)
+    async function analyzePhoto(input) {
       const result = document.getElementById('analysisResult');
       const apiKey = state.settings.apiKey;
       const model = state.settings.model || 'gemini-2.5-flash';
       const hasKey = apiKey && apiKey.startsWith('AIza');
 
+      // 새 사진이면 누적 (한도 초과 시 안내만)
+      let imgDataUrl = '';
+      if (typeof input === 'string' && input.startsWith('data:')) {
+        imgDataUrl = input;
+        const imgs = getFoodImages();
+        if (imgs.length >= FOOD_MAX_IMAGES) {
+          showToast(`한 끼 사진은 최대 ${FOOD_MAX_IMAGES}장까지 추가할 수 있어요`);
+          return;
+        }
+        if (hasKey) {
+          try {
+            const blob = await (await fetch(input)).blob();
+            const file = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
+            const resized = await resizeImageForAI(file, 1280, 0.8);
+            imgs.push({ base64: resized.base64, mimeType: resized.mimeType });
+          } catch (e) {
+            console.warn('[food add] resize fail', e);
+            showToast('사진 처리 실패: ' + (e.message || e));
+            return;
+          }
+        } else {
+          // mock 모드는 사진 1장만 인식 — 첫 사진만 추가
+          if (imgs.length === 0) imgs.push({ base64: '', mimeType: 'image/jpeg' });
+        }
+      }
+
+      const images = getFoodImages();
+      if (images.length === 0) return;
+      const imageCount = images.length;
+
       result.innerHTML = `
         <div class="analysis-panel loading-pulse">
           <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-          <div style="margin-top:12px;">${hasKey ? 'Gemini Vision이 음식을 분석 중입니다...' : 'AI가 음식을 분석 중입니다... (모의 모드)'}</div>
-          <div style="font-size:11px; color:var(--muted); margin-top:4px;">${hasKey ? model + ' · 실제 AI 호출 중' : 'API 키 없음 — 랜덤 결과'}</div>
+          <div style="margin-top:12px;">${hasKey ? `Gemini Vision이 ${imageCount}장 ${imageCount > 1 ? '통합 ' : ''}분석 중...` : 'AI가 음식을 분석 중입니다... (모의 모드)'}</div>
+          <div style="font-size:11px; color:var(--muted); margin-top:4px;">${hasKey ? model + ' · 1회 호출' : 'API 키 없음 — 랜덤 결과'}</div>
         </div>
       `;
 
-      // 캐시 조회 — 같은 이미지 재분석 시 즉시 결과 반환 (이미지 자체는 저장하지 않음)
-      let imgHashKey = null;
-      if (hasKey) {
+      // 캐시 조회 — 같은 사진 세트 재분석 시 즉시 결과 반환 (이미지 자체는 저장하지 않음)
+      let cacheKey = null;
+      if (hasKey && imageCount > 0) {
         try {
-          imgHashKey = await imageHash(imgDataUrl);
-          if (imgHashKey) {
-            const cached = await cacheGetAnalysis(imgHashKey);
+          if (imageCount === 1) {
+            cacheKey = await imageHash('data:' + images[0].mimeType + ';base64,' + images[0].base64);
+          } else {
+            // 다중 이미지 키: 각 해시 정렬·연결 후 다시 SHA-256
+            const hashes = [];
+            for (const img of images) {
+              const h = await imageHash('data:' + img.mimeType + ';base64,' + img.base64);
+              if (h) hashes.push(h);
+            }
+            if (hashes.length === imageCount) {
+              hashes.sort();
+              const enc = new TextEncoder().encode('food:' + hashes.join('|'));
+              const buf = await crypto.subtle.digest('SHA-256', enc);
+              cacheKey = 'food:' + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+          }
+          if (cacheKey) {
+            const cached = await cacheGetAnalysis(cacheKey);
             if (cached && cached.items && cached.total && cached.scores) {
-              const goal = state.profile.goal;
               const emoji = cached.emoji || FOOD_EMOJI[cached.items[0].name] || '🍽';
               result.innerHTML = renderAnalysis(cached.items, cached.total, cached.scores, emoji, imgDataUrl);
               state.__currentAnalysis = { items: cached.items, total: cached.total, scores: cached.scores, emoji, imgDataUrl };
-              showToast('⚡ 동일 사진 — 캐시된 결과 즉시 표시 (API 호출 절감)');
+              showToast(`⚡ 동일 사진${imageCount > 1 ? ' 세트' : ''} — 캐시된 결과 즉시 표시`);
               return;
             }
           }
-        } catch (e) { /* 캐시 실패는 무시하고 정상 분석 진행 */ }
+        } catch (e) { /* 캐시 실패는 무시 */ }
       }
 
       try {
-        let items, totalRaw;
+        let items;
         if (hasKey) {
-          // Real Gemini Vision API — 항상 1280px·JPEG q=0.8로 압축 (대역폭·비용·메모리 절감)
-          const mimeMatch = imgDataUrl.match(/^data:(image\/[\w+]+);base64,/);
-          let mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-          let base64 = imgDataUrl.replace(/^data:image\/[\w+]+;base64,/, '');
-          const approxMB = (base64.length * 0.75) / (1024*1024);
-          try {
-            const blob = await (await fetch(imgDataUrl)).blob();
-            const file = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
-            const resized = await resizeImageForAI(file, 1280, 0.8);
-            base64 = resized.base64;
-            mimeType = resized.mimeType;   // 항상 image/jpeg 강제
-            console.log('[food] resized', approxMB.toFixed(2) + 'MB →', (resized.size/1024/1024).toFixed(2) + 'MB');
-          } catch (rerr) { console.warn('[food] resize failed, using original:', rerr); }
-          const ai = await analyzeWithGemini(base64, apiKey, model, mimeType);
+          const ai = await analyzeWithGemini(images, apiKey, model, null);
           if (!ai.items || ai.items.length === 0) {
             throw new Error('음식을 인식하지 못했어요. 다시 찍어주세요.');
           }
           items = ai.items.map(it => sanitizeAIItem(it, 0.8));
           state.__lastAIResponse = ai;
         } else {
-          // Fallback: mock mode
+          // Fallback: mock mode (사진 장수에 비례해 인식 항목 수 증가)
           await new Promise(r => setTimeout(r, 1500));
           const names = Object.keys(FOOD_DB);
-          const count = Math.random() < 0.4 ? 1 : Math.random() < 0.7 ? 2 : 3;
+          const count = Math.min(names.length, imageCount + (Math.random() < 0.4 ? 0 : 1) + (Math.random() < 0.5 ? 1 : 0));
           items = [];
           for (let i = 0; i < count; i++) {
             const name = names[Math.floor(Math.random() * names.length)];
@@ -5198,21 +5248,40 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         // Store current analysis for manual correction
         state.__currentAnalysis = { items, total, scores, emoji, imgDataUrl };
 
-        // AI 모드에서 분석 성공 시 결과를 캐시 (이미지 X, 결과 JSON만 — TTL 30일)
-        if (hasKey && imgHashKey) {
-          cachePutAnalysis(imgHashKey, { items, total, scores, emoji }).catch(() => {});
+        // 다중 사진이면 추가 안내
+        if (imageCount > 1) {
+          showToast(`✨ ${imageCount}장 통합 분석 완료 — ${items.length}개 음식 인식`);
+        }
+
+        // AI 모드 분석 성공 시 결과 캐시 (이미지 X, 결과 JSON만)
+        if (hasKey && cacheKey) {
+          cachePutAnalysis(cacheKey, { items, total, scores, emoji }).catch(() => {});
         }
       } catch(err) {
         result.innerHTML = `
           <div class="analysis-panel">
-            <div style="color:#f87171; font-size:14px; margin-bottom:8px;">⚠️ AI 분석 실패</div>
+            <div style="color:#f87171; font-size:14px; margin-bottom:8px;">⚠️ AI 분석 실패 (${imageCount}장)</div>
             <div style="color:var(--muted); font-size:12px; margin-bottom:12px;">${escapeHtml(err.message)}</div>
-            <button class="btn btn-ghost" onclick="openManualInput('${imgDataUrl.substring(0,50)}')">수동으로 입력</button>
+            <button class="btn btn-ghost" onclick="addFoodPhoto()">📷 사진 더 추가</button>
             <div style="height:8px"></div>
-            <button class="btn btn-ghost" onclick="analyzePhoto('${imgDataUrl.replace(/'/g,"\\'")}')">다시 시도</button>
+            <button class="btn btn-ghost" onclick="analyzePhoto('reanalyze')">🔄 다시 시도 (${imageCount}장)</button>
           </div>
         `;
         console.error(err);
+      }
+    }
+
+    // 분석 결과 후 "사진 더 추가" 버튼 — 카메라/갤러리 input 트리거
+    function addFoodPhoto() {
+      const imgs = getFoodImages();
+      if (imgs.length >= FOOD_MAX_IMAGES) {
+        showToast(`한 끼 사진은 최대 ${FOOD_MAX_IMAGES}장까지 추가할 수 있어요`);
+        return;
+      }
+      const input = document.getElementById('cameraInput');
+      if (input) {
+        input.value = '';
+        input.click();
       }
     }
 
@@ -5891,6 +5960,16 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
           </div>
 
           <div class="divider"></div>
+          <div style="background:rgba(59,130,246,.06); border:1px solid rgba(59,130,246,.2); border-radius:10px; padding:10px; margin-bottom:10px;">
+            <div style="display:flex; gap:10px; align-items:center;">
+              <div style="font-size:22px;">📸</div>
+              <div style="flex:1; font-size:11.5px; color:var(--muted); line-height:1.55;">
+                여러 접시·반찬을 따로 찍었나요? <b style="color:var(--text);">사진을 추가하면 통합 재분석</b>합니다 (Gemini 1회 호출).<br>
+                <span style="opacity:.85;">현재 ${(getFoodImages() || []).length}/${FOOD_MAX_IMAGES}장 · 사진은 영구 저장 X</span>
+              </div>
+              <button type="button" class="btn btn-ghost btn-small" onclick="addFoodPhoto()" ${(getFoodImages() || []).length >= FOOD_MAX_IMAGES ? 'disabled' : ''}>➕ 추가</button>
+            </div>
+          </div>
           <div class="btn-row">
             <button class="btn btn-primary" onclick='saveMeal(${JSON.stringify({items, t, scores, emoji})})'>✅ 식사 기록 저장</button>
             <button class="btn btn-ghost" onclick="stopCamera(); document.getElementById('analysisResult').innerHTML=''">다시</button>
@@ -5984,9 +6063,10 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         emoji: data.emoji
       };
       state.meals.push(meal);
-      // 메모리 회수: 분석 후 보관하던 dataURL(2~5MB) 정리
+      // 메모리 회수: 분석 후 보관하던 dataURL(2~5MB) + 누적 사진 배열 정리
       state.__currentAnalysis = null;
       state.__lastAIResponse = null;
+      clearFoodImages();
       save();
       showToast('식사가 기록되었어요 ✅');
       document.getElementById('analysisResult').innerHTML = '';
