@@ -1141,6 +1141,19 @@
       <div id="allergyChips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
     </div>
 
+    <!-- 복용약 카테고리 — 약물·음식 상호작용 경고 (Pro 기능) -->
+    <div class="card">
+      <div class="card-title">💊 복용약 (음식 상호작용 경고) <span class="badge badge-pro" style="margin-left:6px;">PRO</span></div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+        복용 중인 약물 카테고리를 등록하면 음식 분석·레시피에서 <b>상호작용 경고</b>를 자동 표시합니다.
+        <span style="opacity:.85;">개별 약물명이 아닌 카테고리 단위만 받으며, 본 정보는 약사·의사 상담을 대체하지 않습니다.</span>
+      </div>
+      <div id="medicationChips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      <div style="margin-top:10px; padding:8px 10px; background:rgba(245,158,11,.06); border-left:3px solid #f59e0b; border-radius:6px; font-size:10.5px; color:#fcd34d; line-height:1.65;">
+        ⚠️ FDA·식약처·KMS 가이드 기반 일반 권고. 자세한 약물 상호작용은 반드시 처방 약사·주치의와 확인하세요.
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">🤖 AI 연결</div>
       <div class="list-item" onclick="openApiKeyInput()" style="cursor:pointer;">
@@ -1487,6 +1500,130 @@
     // ============== ALLERGEN STANDARD (식약처 표시기준 8대) ==============
     // 사용자 프로필에 등록된 알레르기와 매칭되면 추천에서 자동 제외
     const ALLERGEN_LIST = ['우유', '계란', '대두', '글루텐', '갑각류', '견과', '땅콩', '생선'];
+
+    // ============== DRUG-FOOD INTERACTION (Pro 기능) ==============
+    // 한국에서 자주 처방되는 약물 카테고리 14군 — 약물명 직접 입력 X, 카테고리 단위만
+    // ⚠️ 본 정보는 FDA·식약처·관련 학회 가이드라인 기반 일반 권고이며 약사 상담을 대체하지 않음
+    const DRUG_CATEGORY_LIST = [
+      { id: 'statin', label: '스타틴 (콜레스테롤)', emoji: '💊' },
+      { id: 'warfarin', label: '와파린 (항응고)', emoji: '💉' },
+      { id: 'doac', label: 'DOAC·NOAC (신형 항응고)', emoji: '💉' },
+      { id: 'tetracycline', label: '테트라사이클린·시프로 (항생제)', emoji: '🦠' },
+      { id: 'macrolide', label: '마크롤라이드 (에리스로마이신 등)', emoji: '🦠' },
+      { id: 'levothyroxine', label: '레보티록신 (갑상선)', emoji: '🦋' },
+      { id: 'maoi', label: 'MAO 억제제 (일부 우울증)', emoji: '🧠' },
+      { id: 'ace_arb', label: 'ACE/ARB (혈압)', emoji: '❤️' },
+      { id: 'k_diuretic', label: '칼륨보존 이뇨제 (스피로놀락톤)', emoji: '💧' },
+      { id: 'metformin', label: '메트포민 (당뇨)', emoji: '🩸' },
+      { id: 'ppi', label: 'PPI (위산억제)', emoji: '🫃' },
+      { id: 'nsaid', label: 'NSAIDs (이부프로펜·아스피린)', emoji: '🩹' },
+      { id: 'benzo', label: '벤조다이아제핀 (수면·항불안)', emoji: '😴' },
+      { id: 'ssri', label: 'SSRI (항우울)', emoji: '🧠' }
+    ];
+
+    // 약물 카테고리별 회피·주의 음식
+    // keywords: 분석된 음식 이름·재료 안에 포함되면 매칭 (부분 문자열)
+    // severity: 'critical' (피해야 함) / 'high' (주의 필요) / 'medium' (간격 권장)
+    const DRUG_INTERACTION_DB = {
+      'statin': {
+        keywords: ['자몽', 'grapefruit', '포도자몽'],
+        severity: 'critical',
+        reason: '자몽 푸라노쿠마린이 CYP3A4 억제 → 스타틴 혈중농도 5~15배↑ (근육·간 손상 위험)',
+        action: '자몽·자몽주스를 절대 피하세요',
+        src: 'FDA·KSoLA'
+      },
+      'warfarin': {
+        keywords: ['시금치', '브로콜리', '낫토', '녹차', '케일', '미역', '다시마'],
+        severity: 'high',
+        reason: '비타민K가 와파린 효과 변동 — 급격한 양 변화는 INR 불안정 유발',
+        action: '갑작스런 양 변화 금지 — 평소 섭취량을 일정하게 유지하고 의사 상담',
+        src: 'FDA·KMS'
+      },
+      'doac': {
+        keywords: ['자몽', 'grapefruit', '세인트존스워트'],
+        severity: 'high',
+        reason: '자몽·세인트존스워트가 약물 대사 변동 — 출혈 또는 효과 감소',
+        action: '자몽 다량 섭취 자제, 허브 보충제는 약사 상담',
+        src: 'FDA'
+      },
+      'tetracycline': {
+        keywords: ['우유', '요거트', '치즈', '칼슘', '철분', '미역', '다시마'],
+        severity: 'high',
+        reason: '칼슘·철분·아연이 항생제와 결합 → 흡수 저해',
+        action: '복용 2시간 전후로 우유·유제품·미네랄 식품 피하기',
+        src: 'FDA'
+      },
+      'macrolide': {
+        keywords: ['자몽', 'grapefruit'],
+        severity: 'high',
+        reason: '자몽이 CYP3A4 억제 → 약물 농도 상승, 부정맥 위험',
+        action: '자몽 섭취 자제',
+        src: 'FDA'
+      },
+      'levothyroxine': {
+        keywords: ['두유', '콩', '미역', '다시마', '칼슘', '우유', '커피', '식이섬유'],
+        severity: 'high',
+        reason: '대두·요오드·칼슘·커피·고섬유가 갑상선약 흡수 저해',
+        action: '복용 후 4시간 이상 간격, 공복 복용 권장',
+        src: 'FDA'
+      },
+      'maoi': {
+        keywords: ['치즈', '와인', '맥주', '소시지', '햄', '간장', '된장', '청국장', '낫토', '훈제'],
+        severity: 'critical',
+        reason: '발효·숙성 식품의 티라민이 MAO 억제 시 분해 안 됨 → 고혈압 위기',
+        action: '숙성치즈·와인·발효식품·가공육 절대 회피 — 응급 위험',
+        src: 'FDA·KMS'
+      },
+      'ace_arb': {
+        keywords: ['바나나', '아보카도', '시금치', '감자', '고구마', '오렌지', '토마토'],
+        severity: 'medium',
+        reason: '고칼륨 식품 다량 섭취 시 고칼륨혈증 위험',
+        action: '하루 권장량 내에서 섭취 — 보충제 형태는 의사 상담',
+        src: 'KSH'
+      },
+      'k_diuretic': {
+        keywords: ['바나나', '아보카도', '시금치', '감자', '오렌지'],
+        severity: 'high',
+        reason: '스피로놀락톤이 칼륨 보존 → 고칼륨 식품 다량 섭취 시 부정맥 위험',
+        action: '고칼륨 식품 양 조절, 칼륨 보충제 자제, 정기 혈액검사',
+        src: 'FDA·KSH'
+      },
+      'metformin': {
+        keywords: ['소주', '맥주', '와인', '막걸리', '알코올'],
+        severity: 'high',
+        reason: '알코올이 메트포민과 함께 젖산산증 위험 (드물지만 치명적)',
+        action: '음주 자제, 폭음 절대 금지 — 의사 상담',
+        src: 'FDA·KDA'
+      },
+      'ppi': {
+        keywords: ['칼슘', '비타민B12', '마그네슘', '우유', '미역'],
+        severity: 'medium',
+        reason: '위산 억제로 칼슘·B12·마그네슘·철분 흡수 저하 (장기 복용 시)',
+        action: '균형 잡힌 식사 + 정기 혈액검사로 결핍 확인',
+        src: 'FDA'
+      },
+      'nsaid': {
+        keywords: ['소주', '맥주', '와인', '막걸리', '알코올'],
+        severity: 'high',
+        reason: 'NSAIDs + 알코올 → 위장 출혈·궤양 위험 증가',
+        action: '복용 중 음주 금지, 공복 복용 자제',
+        src: 'FDA'
+      },
+      'benzo': {
+        keywords: ['자몽', 'grapefruit', '소주', '맥주', '와인', '막걸리', '알코올'],
+        severity: 'critical',
+        reason: '자몽이 약물 농도 상승, 알코올과 병용 시 호흡 억제 위험',
+        action: '자몽·알코올 절대 회피',
+        src: 'FDA'
+      },
+      'ssri': {
+        keywords: ['세인트존스워트', '커피', '에너지음료'],
+        severity: 'medium',
+        reason: '세인트존스워트는 세로토닌 증후군 위험, 카페인 다량은 불안 증가',
+        action: '허브 보충제 자제, 카페인 적정량',
+        src: 'FDA'
+      }
+    };
 
     // ============== RECIPE DATABASE (강화 — 영양·조리법·알레르겐·건강 가이드) ==============
     // 출처 약어: MFDS=식품의약품안전처 식품영양정보, KDA=대한당뇨병학회,
@@ -3297,6 +3434,7 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         targetCarb: Math.round(tdee * 0.5 / 4),
         targetFat: Math.round(tdee * 0.25 / 9),
         allergies: [],            // 식약처 8대 알레르겐 — 프로필 화면에서 토글 (레시피 자동 제외에 사용)
+        medications: [],          // 복용약 카테고리 (Pro 기능) — 음식·레시피 상호작용 경고
         createdAt: new Date().toISOString()
       };
 
@@ -4990,6 +5128,8 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
 
           ${renderCautionPanel(getCautionGroups(t, items))}
 
+          ${renderDrugWarnings(matchDrugInteractions(items))}
+
           ${renderNextMealPanel(t, items, goal)}
 
           <div class="divider"></div>
@@ -6370,6 +6510,8 @@ JSON 형식:
           </div>
         ` : ''}
 
+        ${renderDrugWarnings(matchDrugInteractions([{ name: r.title, ingredients: r.ingredients }]))}
+
         <div class="card-title">🥗 영양 (${escapeHtml(r.servingNote || '1인분 기준')})</div>
         <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:14px;">
           <div style="background:rgba(0,0,0,.2); padding:8px; border-radius:8px; text-align:center;">
@@ -6978,6 +7120,8 @@ JSON 형식:
       }
       // 알레르기 칩 (8대 표준) — 토글로 추가/제거
       renderAllergyChips();
+      // 약물 카테고리 칩 (Pro 기능)
+      renderMedicationChips();
       // Auto-run storage diagnostics
       runDiagnostics();
     }
@@ -7008,6 +7152,124 @@ JSON 형식:
       save();
       renderAllergyChips();
       showToast(idx >= 0 ? `${a} 알레르기 해제` : `🚫 ${a} 알레르기 등록`);
+    }
+
+    // ─── 약물 카테고리 칩 (Pro 게이트) ───
+    function renderMedicationChips() {
+      const wrap = document.getElementById('medicationChips');
+      if (!wrap) return;
+      // 기존 사용자 마이그레이션
+      if (!state.profile.medications) state.profile.medications = [];
+
+      // Pro 게이트 — 미인증자에겐 잠금 안내만
+      if (!isProActive()) {
+        wrap.innerHTML = `
+          <div style="width:100%; padding:12px; background:rgba(245,158,11,.08); border:1px dashed rgba(245,158,11,.4); border-radius:10px; text-align:center;">
+            <div style="font-size:13px; color:#fcd34d; font-weight:700; margin-bottom:6px;">🔒 Pro 전용 기능</div>
+            <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.6;">
+              복용약 카테고리 등록 후 음식·레시피와의 상호작용을 자동 경고합니다.<br>
+              7일 무료 체험으로 즉시 시작 가능.
+            </div>
+            <button class="btn btn-primary btn-small" onclick="openProSubscribe()" style="background:linear-gradient(135deg,#f59e0b,#d97706);">
+              💎 Pro 시작
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      const set = new Set(state.profile.medications);
+      wrap.innerHTML = DRUG_CATEGORY_LIST.map(d => {
+        const on = set.has(d.id);
+        return `<button type="button" class="chip" onclick="toggleMedication(${escapeJsAttr(d.id)})"
+          style="cursor:pointer; padding:6px 12px; border:1px solid ${on ? 'rgba(239,68,68,.5)' : 'rgba(255,255,255,.12)'};
+          background:${on ? 'rgba(239,68,68,.18)' : 'rgba(255,255,255,.04)'};
+          color:${on ? '#fca5a5' : 'var(--text)'}; font-weight:${on ? '700' : '500'}; font-size:12px;">
+          ${on ? '🔔 ' : d.emoji + ' '}${escapeHtml(d.label)}
+        </button>`;
+      }).join('');
+    }
+
+    function toggleMedication(id) {
+      if (!state.profile) return;
+      if (!isProActive()) {
+        showToast('Pro 기능입니다 — 7일 무료 체험으로 시작 가능');
+        openProSubscribe();
+        return;
+      }
+      if (!state.profile.medications) state.profile.medications = [];
+      const idx = state.profile.medications.indexOf(id);
+      if (idx >= 0) state.profile.medications.splice(idx, 1);
+      else state.profile.medications.push(id);
+      save();
+      renderMedicationChips();
+      const drug = DRUG_CATEGORY_LIST.find(d => d.id === id);
+      showToast(idx >= 0 ? `${drug?.label} 해제` : `🔔 ${drug?.label} 등록 — 음식 분석 시 경고`);
+    }
+
+    // ─── 약물·음식 상호작용 매칭 ───
+    // items(분석된 음식·재료 배열) ↔ 등록된 약물 카테고리 → 경고 배열 반환
+    function matchDrugInteractions(items) {
+      if (!state.profile || !state.profile.medications || state.profile.medications.length === 0) return [];
+      if (!isProActive()) return [];   // Pro 만료 시 매칭 결과도 안 보여줌
+
+      const names = (items || [])
+        .flatMap(it => [it && it.name, ...(it && it.ingredients || [])])
+        .filter(Boolean)
+        .map(s => String(s));
+      if (names.length === 0) return [];
+
+      const warnings = [];
+      state.profile.medications.forEach(medId => {
+        const data = DRUG_INTERACTION_DB[medId];
+        if (!data) return;
+        const matchedKw = (data.keywords || []).filter(kw =>
+          names.some(n => n.includes(kw) || kw.includes(n))
+        );
+        if (matchedKw.length === 0) return;
+        const drug = DRUG_CATEGORY_LIST.find(d => d.id === medId);
+        warnings.push({
+          drugId: medId,
+          drugLabel: drug ? drug.label : medId,
+          drugEmoji: drug ? drug.emoji : '💊',
+          severity: data.severity,
+          matchedFoods: matchedKw,
+          reason: data.reason,
+          action: data.action,
+          src: data.src
+        });
+      });
+      return warnings;
+    }
+
+    // 약물 경고 패널 렌더 — 분석 카드·레시피 모달에서 공유
+    function renderDrugWarnings(warnings) {
+      if (!warnings || warnings.length === 0) return '';
+      const sevColor = { critical: '#ef4444', high: '#f59e0b', medium: '#facc15' };
+      const sevLabel = { critical: '🚨 위험', high: '⚠️ 주의', medium: '⏱ 간격 권장' };
+      return `
+        <div style="margin:12px 0; padding:0; border-radius:12px; overflow:hidden;">
+          <div style="background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.4); padding:10px 12px;">
+            <div style="font-size:13px; font-weight:800; color:#fca5a5; margin-bottom:8px;">
+              💊 복용약-음식 상호작용 경고 (${warnings.length}건)
+            </div>
+            ${warnings.map(w => `
+              <div style="background:rgba(0,0,0,.25); border-left:3px solid ${sevColor[w.severity] || '#f59e0b'}; padding:8px 10px; border-radius:6px; margin-top:6px;">
+                <div style="display:flex; justify-content:space-between; gap:8px; align-items:baseline; margin-bottom:4px;">
+                  <span style="font-size:12.5px; font-weight:700; color:var(--text);">${w.drugEmoji} ${escapeHtml(w.drugLabel)}</span>
+                  <span style="font-size:10.5px; color:${sevColor[w.severity] || '#f59e0b'}; font-weight:700;">${sevLabel[w.severity] || w.severity}</span>
+                </div>
+                <div style="font-size:11px; color:var(--muted); margin-bottom:3px;">감지: <b style="color:#fca5a5;">${w.matchedFoods.map(f => escapeHtml(f)).join(', ')}</b></div>
+                <div style="font-size:11px; color:var(--text); line-height:1.55;">${escapeHtml(w.reason)}</div>
+                <div style="margin-top:4px; font-size:11px; color:#6ee7b7; line-height:1.55;">💡 ${escapeHtml(w.action)} <span style="color:var(--muted); font-weight:600;">· ${escapeHtml(w.src)}</span></div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="background:rgba(0,0,0,.3); padding:8px 12px; font-size:10.5px; color:var(--muted); line-height:1.6;">
+            ⚠️ 본 경고는 일반 가이드라인 기반 자동 매칭이며 <b>약사·주치의 상담</b>이 필수입니다. 약물 상호작용은 개인 약물·용량·기저질환에 따라 다를 수 있습니다.
+          </div>
+        </div>
+      `;
     }
 
     // Robustly open AI Studio URL - works in PWA standalone mode
