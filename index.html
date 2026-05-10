@@ -896,6 +896,9 @@
       <div id="nutriBars"></div>
     </div>
 
+    <!-- 건강 정보 미입력 시 노출되는 입력 유도 카드 (renderHome에서 조건부 갱신) -->
+    <div id="healthCta"></div>
+
     <div class="grid-2">
       <div class="mini-card" onclick="goTo('inventory')" style="cursor:pointer">
         <div class="mini-icon">🧊</div>
@@ -3010,6 +3013,51 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
             </div>
           </div>
         `).join('');
+      }
+
+      // 건강 기록 입력 유도 — 데이터 없으면 가치 미리보기 카드, 있으면 짧은 요약
+      const cta = document.getElementById('healthCta');
+      if (cta) {
+        if (!hasHealthData()) {
+          cta.innerHTML = `
+            <div class="card" style="background:linear-gradient(135deg, rgba(59,130,246,.15), rgba(16,185,129,.10)); border:1px solid rgba(59,130,246,.3);">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <div style="font-size:28px;">❤️</div>
+                <div style="flex:1;">
+                  <div style="font-size:14px; font-weight:800; color:var(--text);">건강 기록을 시작해보세요</div>
+                  <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">지금은 <b>일반 권고</b>만 표시됩니다 · 정밀 추천 잠금 상태</div>
+                </div>
+              </div>
+              <div style="background:rgba(0,0,0,.2); border-radius:10px; padding:10px; margin-bottom:10px;">
+                <div style="font-size:11px; color:#93c5fd; font-weight:700; margin-bottom:6px; letter-spacing:.04em;">기록 시 잠금 해제</div>
+                <div style="font-size:11.5px; color:var(--text); line-height:1.7;">
+                  ✅ 단백질·섬유·나트륨 부족·과잉 자동 감지<br>
+                  ✅ 당뇨·고혈압 맞춤 레시피 정밀 추천<br>
+                  ✅ 주간 패턴 인사이트 (혈당·체중 변화 추이)<br>
+                  ✅ 알레르기·복용약 상호작용 경고
+                </div>
+              </div>
+              <button class="btn btn-primary" onclick="openHealthInput()">
+                ➕ 30초만에 시작 (체중·혈당·수면 중 1개)
+              </button>
+            </div>
+          `;
+        } else if (!hasRichHealthData()) {
+          cta.innerHTML = `
+            <div class="card" style="background:rgba(245,158,11,.06); border:1px solid rgba(245,158,11,.25);">
+              <div style="display:flex; gap:10px; align-items:center;">
+                <div style="font-size:24px;">📈</div>
+                <div style="flex:1;">
+                  <div style="font-size:13px; font-weight:700; color:#fcd34d;">건강 기록을 더 추가하면 정밀해져요</div>
+                  <div style="font-size:11px; color:var(--muted); margin-top:2px;">2종 이상 (체중·혈당·수면 등) 30일 내 기록 시 인사이트 활성</div>
+                </div>
+                <button class="btn btn-ghost btn-small" onclick="openHealthInput()">➕ 추가</button>
+              </div>
+            </div>
+          `;
+        } else {
+          cta.innerHTML = '';
+        }
       }
 
       // Recipe recs
@@ -5521,6 +5569,24 @@ JSON 형식:
       renderRecipes();
     }
 
+    // ============== HEALTH DATA STATUS ==============
+    // 건강 기록(체중·혈당·수면 등)이 충분한지 판정 — 추천·정보 깊이를 결정
+    // 기준: 최근 30일 내 1건 이상 (다양성은 별도 헬퍼로 추가 활용 가능)
+    function hasHealthData() {
+      if (!state.health || state.health.length === 0) return false;
+      const cutoff = Date.now() - 30 * 86400000;
+      return state.health.some(h => new Date(h.time).getTime() >= cutoff);
+    }
+    // 다양한 지표가 있는지 (체중·혈당·수면 중 2종 이상) — "정밀 모드" 판정에 사용
+    function hasRichHealthData() {
+      if (!state.health || state.health.length < 3) return false;
+      const cutoff = Date.now() - 30 * 86400000;
+      const types = new Set(
+        state.health.filter(h => new Date(h.time).getTime() >= cutoff).map(h => h.metric)
+      );
+      return types.size >= 2;
+    }
+
     // ============== USER PATTERN ANALYSIS ==============
     // 최근 7일 식사·재고·프로필을 분석해 추천 가중치를 계산할 컨텍스트 생성
     function analyzeUserPattern() {
@@ -5591,49 +5657,61 @@ JSON 형식:
       return {
         avg, needs, recentNames, todayTypes, currentTime,
         expiringItems, currentIngredients, cautionGroups, allergies,
-        goal: target.goal || 'general'
+        goal: target.goal || 'general',
+        hasHealth: hasHealthData(),
+        hasRichHealth: hasRichHealthData()
       };
     }
 
     // 가중치 스코어링 추천 — 영양 부족 보충 + 목표 + 만료 활용 + 시간대 + 다양성 + 알레르기 회피
+    // hasHealth=false 시 개인화 가중치 약화 → 일반 권고 위주 (안전한 디폴트)
     function pickRecipesV2(n, ctx) {
       ctx = ctx || analyzeUserPattern();
+      // 건강 기록이 없으면 영양 부족 보충·목표 가중치를 약화 (계산은 식사 기록만으로 부정확)
+      const personalScale = ctx.hasHealth ? 1.0 : 0.4;
       const scored = RECIPES.map(r => {
         // 1) 알레르기 매칭은 우선 제외 처리 (-100)
         const blockedByAllergy = (r.allergens || []).some(a => ctx.allergies.has(a));
 
-        // 2) 보유 재료 매칭 (max 20)
+        // 2) 보유 재료 매칭 (max 20) — 개인화 무관, 그대로 유지
         const matched = r.ingredients.filter(ing => ctx.currentIngredients.has(ing)).length;
         const matchPct = matched / r.ingredients.length;
         const sIngredient = matchPct * 20;
 
-        // 3) 영양 부족 보충 (max 25)
+        // 3) 영양 부족 보충 (max 25, 제한 모드 시 ×0.4)
         let sNutrition = 0;
         const reasons = [];
         if (ctx.needs.protein === 'low' && r.nutrition.p >= 20) {
-          sNutrition += 12; reasons.push('단백질 부족 보충');
+          sNutrition += 12;
+          if (ctx.hasHealth) reasons.push('단백질 부족 보충');
         }
         if (ctx.needs.fiber === 'low' && r.nutrition.fiber >= 5) {
-          sNutrition += 8; reasons.push('식이섬유 부족 보충');
+          sNutrition += 8;
+          if (ctx.hasHealth) reasons.push('식이섬유 부족 보충');
         }
         if (ctx.needs.sodium === 'high' && r.nutrition.sodium <= 500) {
-          sNutrition += 8; reasons.push('저염 권장');
+          sNutrition += 8;
+          if (ctx.hasHealth) reasons.push('저염 권장');
         }
         if (ctx.needs.sugar === 'high' && r.nutrition.sugar <= 8) {
-          sNutrition += 6; reasons.push('저당 권장');
+          sNutrition += 6;
+          if (ctx.hasHealth) reasons.push('저당 권장');
         }
         if (ctx.needs.kcal === 'high' && r.nutrition.kcal <= 350) {
-          sNutrition += 5; reasons.push('칼로리 조절');
+          sNutrition += 5;
+          if (ctx.hasHealth) reasons.push('칼로리 조절');
         }
         if (ctx.needs.kcal === 'low' && r.nutrition.kcal >= 400) {
-          sNutrition += 4; reasons.push('에너지 보충');
+          sNutrition += 4;
+          if (ctx.hasHealth) reasons.push('에너지 보충');
         }
-        sNutrition = Math.min(25, sNutrition);
+        sNutrition = Math.min(25, sNutrition) * personalScale;
 
-        // 4) 목표 적합도 (max 20)
+        // 4) 목표 적합도 (max 20, 제한 모드 시 ×0.4)
         let sGoal = 0;
         if ((r.goals || []).includes(ctx.goal)) {
-          sGoal = 20; reasons.push(goalLabel(ctx.goal) + ' 목표 적합');
+          sGoal = 20 * personalScale;
+          if (ctx.hasHealth) reasons.push(goalLabel(ctx.goal) + ' 목표 적합');
         } else if ((r.goals || []).includes('general')) {
           sGoal = 8;
         }
@@ -5700,6 +5778,15 @@ JSON 형식:
       const ctx = analyzeUserPattern();
       let recipes = pickRecipesV2(RECIPES.length, ctx);
 
+      // 건강 기록 없으면 가시성 제한 — 일반(general) 적합 또는 보유 재료 매칭 우선만 노출
+      if (!ctx.hasHealth) {
+        recipes = recipes.filter(r =>
+          (r.goals || []).includes('general') || r.matchPct >= 0.5
+        );
+        // 상한: 너무 많은 카드 노출 안 함 (일반 권고 단계)
+        recipes = recipes.slice(0, 10);
+      }
+
       // 탭 필터 (추천 점수 기반 정렬은 유지)
       if (recipeTab === 'available') recipes = recipes.filter(r => r.matchPct >= 0.5);
       else if (recipeTab === 'expire') recipes = recipes.filter(r => r.usesExpiring);
@@ -5708,14 +5795,35 @@ JSON 형식:
       }
 
       const list = document.getElementById('recipeList');
+
+      // 데이터 미입력 안내 배너 (탭과 무관하게 화면 상단에 항상 노출)
+      const banner = !ctx.hasHealth ? `
+        <div class="card" style="background:linear-gradient(135deg, rgba(59,130,246,.12), rgba(16,185,129,.08)); border:1px solid rgba(59,130,246,.3); margin-bottom:14px;">
+          <div style="display:flex; gap:10px; align-items:flex-start;">
+            <div style="font-size:24px; flex-shrink:0;">🔒</div>
+            <div style="flex:1;">
+              <div style="font-size:13px; font-weight:800; color:var(--text);">정밀 레시피 추천이 잠금 상태예요</div>
+              <div style="font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.6;">
+                건강 기록(체중·혈당·수면 등)이 없어 <b>일반 권고만</b> 표시됩니다.<br>
+                기록 시 단백질 부족 보충·당뇨 맞춤·고혈압 저염 등 <b>맞춤 추천</b>으로 전환됩니다.
+              </div>
+              <div style="margin-top:10px; display:flex; gap:6px;">
+                <button class="btn btn-primary btn-small" onclick="openHealthInput()" style="flex:1;">➕ 건강 정보 입력</button>
+                <button class="btn btn-ghost btn-small" onclick="goTo('report')" style="flex:1;">📊 리포트로 이동</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ` : '';
+
       if (recipes.length === 0) {
         const allergyHint = ctx.allergies && ctx.allergies.size > 0
           ? `<div style="font-size:11px; color:var(--muted); margin-top:6px;">알레르기 등록: ${[...ctx.allergies].join(', ')} — 해당 알레르겐 포함 레시피는 자동 제외됩니다</div>`
           : '';
-        list.innerHTML = `<div class="empty"><span class="icon">🍳</span><div class="text">조건에 맞는 레시피가 없어요</div>${allergyHint}</div>`;
+        list.innerHTML = banner + `<div class="empty"><span class="icon">🍳</span><div class="text">조건에 맞는 레시피가 없어요</div>${allergyHint}</div>`;
         return;
       }
-      list.innerHTML = recipes.map(r => {
+      list.innerHTML = banner + recipes.map(r => {
         const badges = nutritionBadges(r);
         const reasonText = (r.reasons || []).slice(0, 2).join(' · ');
         const cautionText = (r.cautionMatch || []).length > 0 ? '⚠️ 주의 안내' : '';
@@ -5990,31 +6098,106 @@ JSON 형식:
 
     function openHealthInput() {
       const m = document.getElementById('modalContent');
+      const isFirst = !hasHealthData();
       m.innerHTML = `
         <div class="modal-handle"></div>
         <div class="modal-title">❤️ 건강 기록</div>
-        <label>지표</label>
-        <select id="hMetric">
-          <option value="weight">체중 (kg)</option>
-          <option value="blood_sugar">공복혈당 (mg/dL)</option>
-          <option value="steps">걸음 수</option>
-          <option value="sleep">수면 (시간)</option>
-          <option value="blood_pressure">혈압</option>
-        </select>
-        <label>값</label>
-        <input type="number" step="0.1" id="hValue" placeholder="68.5" />
-        <button class="btn btn-primary" onclick="saveHealth()">저장</button>
+
+        ${isFirst ? `
+          <div style="margin-bottom:14px; padding:12px; background:linear-gradient(135deg, rgba(59,130,246,.12), rgba(16,185,129,.08)); border:1px solid rgba(59,130,246,.3); border-radius:10px;">
+            <div style="font-size:12px; font-weight:700; color:#93c5fd; margin-bottom:6px; letter-spacing:.04em;">🔓 첫 입력 시 잠금 해제</div>
+            <div style="font-size:11.5px; color:var(--text); line-height:1.7;">
+              ✅ 단백질·섬유·나트륨 부족·과잉 자동 감지<br>
+              ✅ 당뇨·고혈압 맞춤 레시피 정밀 추천<br>
+              ✅ 주간 패턴 인사이트 (혈당·체중 추이)<br>
+              ✅ 알레르기·복용약 상호작용 경고
+            </div>
+            <div style="font-size:10.5px; color:var(--muted); margin-top:8px; line-height:1.6;">
+              📌 한 가지만 입력해도 즉시 활성됩니다 — 모든 항목을 채울 필요 없어요.
+            </div>
+          </div>
+        ` : ''}
+
+        <div style="font-size:11px; color:var(--muted); margin-bottom:8px; line-height:1.5;">
+          여러 개를 한 번에 입력할 수 있어요. <b>입력한 항목만</b> 저장됩니다.
+        </div>
+
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+          <span style="font-size:18px;">⚖️</span> 체중 (kg)
+        </label>
+        <input type="number" step="0.1" id="hWeight" placeholder="68.5" inputmode="decimal" />
+
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:4px; margin-top:10px;">
+          <span style="font-size:18px;">🩸</span> 공복혈당 (mg/dL)
+        </label>
+        <input type="number" step="1" id="hBloodSugar" placeholder="100" inputmode="numeric" />
+
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:4px; margin-top:10px;">
+          <span style="font-size:18px;">😴</span> 수면 (시간)
+        </label>
+        <input type="number" step="0.5" id="hSleep" placeholder="7" inputmode="decimal" />
+
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:4px; margin-top:10px;">
+          <span style="font-size:18px;">👟</span> 걸음 수
+        </label>
+        <input type="number" step="100" id="hSteps" placeholder="8000" inputmode="numeric" />
+
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:4px; margin-top:10px;">
+          <span style="font-size:18px;">❤️</span> 혈압 수축기 (mmHg) — 선택
+        </label>
+        <input type="number" step="1" id="hBloodPressure" placeholder="120" inputmode="numeric" />
+
+        <div style="height:14px;"></div>
+        <button class="btn btn-primary" onclick="saveHealthMulti()">💾 입력한 항목 저장</button>
+        <div style="height:8px;"></div>
+        <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+
+        <div style="margin-top:14px; padding:8px 10px; background:rgba(0,0,0,.2); border-radius:8px; font-size:10.5px; color:var(--muted); line-height:1.6;">
+          🔒 모든 데이터는 사용자 기기에만 저장되며 외부로 전송되지 않습니다.
+        </div>
       `;
       openModal();
     }
-    function saveHealth() {
-      const metric = document.getElementById('hMetric').value;
-      const value = parseFloat(document.getElementById('hValue').value);
-      if (!value) { showToast('값을 입력해주세요'); return; }
-      state.health.push({ id: uid(), metric, value, time: new Date().toISOString(), source: 'manual' });
-      save(); closeModal(); renderReport();
-      showToast('건강 기록 저장됨');
+
+    // 한 번에 여러 지표 저장 — 입력된 항목만 push (입력 마찰 최소화)
+    function saveHealthMulti() {
+      const fields = [
+        { id: 'hWeight', metric: 'weight', range: [20, 300], label: '체중' },
+        { id: 'hBloodSugar', metric: 'blood_sugar', range: [30, 500], label: '공복혈당' },
+        { id: 'hSleep', metric: 'sleep', range: [0, 24], label: '수면' },
+        { id: 'hSteps', metric: 'steps', range: [0, 100000], label: '걸음' },
+        { id: 'hBloodPressure', metric: 'blood_pressure', range: [50, 250], label: '혈압' }
+      ];
+      const now = new Date().toISOString();
+      let saved = 0;
+      const invalid = [];
+      fields.forEach(f => {
+        const el = document.getElementById(f.id);
+        if (!el || !el.value) return;
+        const v = parseFloat(el.value);
+        if (isNaN(v) || v < f.range[0] || v > f.range[1]) {
+          invalid.push(`${f.label}(${v})`);
+          return;
+        }
+        state.health.push({ id: uid(), metric: f.metric, value: v, time: now, source: 'manual' });
+        saved++;
+      });
+      if (saved === 0) {
+        if (invalid.length) showToast(`범위 벗어남: ${invalid.join(', ')}`);
+        else showToast('하나 이상 입력해주세요');
+        return;
+      }
+      save();
+      closeModal();
+      // 호출 화면별 갱신
+      if (document.getElementById('screen-report')?.classList.contains('active')) renderReport();
+      if (document.getElementById('screen-home')?.classList.contains('active')) renderHome();
+      if (document.getElementById('screen-recipes')?.classList.contains('active')) renderRecipes();
+      showToast(`✅ ${saved}개 기록 저장 — 정밀 추천이 활성됩니다`);
     }
+
+    // 호환: 기존 saveHealth() 호출자(없으면 미사용)
+    function saveHealth() { saveHealthMulti(); }
 
     // ============== PROFILE ==============
     function renderProfile() {
