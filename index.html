@@ -1456,6 +1456,256 @@
       { id: 'r8', title: '닭가슴살 김밥', emoji: '🍣', time: 30, difficulty: '보통', ingredients: ['닭가슴살', '현미밥', '김', '시금치', '당근'], kcal: 420, tags: ['근육','균형'] }
     ];
 
+    // ============== FOOD INTERACTION DB (의학적 검증 기반) ==============
+    // 출처 약어: NIH-ODS = NIH Office of Dietary Supplements / FDA = US FDA
+    //           MFDS = 식품의약품안전처 / KDA = 대한당뇨병학회
+    //           KSH = 대한고혈압학회 / KSoLA = 대한지질·동맥경화학회
+    //           WHO = World Health Organization / Linus Pauling = OSU Linus Pauling Institute
+    // ⚠️ 본 데이터는 일반 가이드라인 기반이며 개인차가 큽니다. 면책 고지는 카드 하단 항시 노출.
+    const INTERACTION_DB = {
+      // ── 채소·잎채류 ──
+      '시금치': {
+        good: [
+          { with: '레몬·오렌지·딸기', reason: '비타민C가 비헴철 흡수 2~3배↑', src: 'NIH-ODS' },
+          { with: '참기름·올리브유', reason: '지용성 비타민K·E·A 흡수↑', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '우유·치즈 다량', reason: '옥살산이 칼슘과 결합·동시 흡수 저해', src: 'NIH-ODS' }
+        ]
+      },
+      '브로콜리': {
+        good: [
+          { with: '올리브유·아보카도', reason: '지용성 비타민K 흡수↑', src: 'Linus Pauling' },
+          { with: '닭가슴살·연어', reason: '글루코시놀레이트 + 단백질 균형', src: 'NIH-ODS' }
+        ],
+        avoid: []
+      },
+      '토마토': {
+        good: [
+          { with: '올리브유·아보카도', reason: '라이코펜 지용성 흡수 2~3배↑', src: 'NIH-ODS' },
+          { with: '마늘·양파', reason: '항산화 시너지 (퀘르세틴+라이코펜)', src: 'PubMed 메타분석' }
+        ],
+        avoid: []
+      },
+      '당근': {
+        good: [
+          { with: '들기름·올리브유·견과', reason: '베타카로틴 지방과 함께 섭취 시 흡수↑', src: 'NIH-ODS' }
+        ],
+        avoid: []
+      },
+      '양배추': {
+        good: [
+          { with: '식초·레몬', reason: '비타민C 보존·흡수↑', src: 'MFDS' }
+        ],
+        avoid: []
+      },
+      // ── 과일 ──
+      '바나나': {
+        good: [
+          { with: '저염식·채소', reason: '칼륨이 나트륨 배설 촉진 (고혈압 권고)', src: 'KSH 2022' },
+          { with: '견과·요거트', reason: '단백질·지방으로 혈당 상승 완화', src: 'KDA 2023' }
+        ],
+        avoid: []
+      },
+      '사과': {
+        good: [
+          { with: '견과류·치즈', reason: '식이섬유(펙틴) + 지방·단백질로 포만감↑', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '경구 약물 직후', reason: '펙틴이 일부 약물 흡수 지연 가능 — 1~2시간 간격', src: 'FDA' }
+        ]
+      },
+      '딸기': {
+        good: [
+          { with: '시금치·견과류', reason: '비타민C가 철분 흡수 보완', src: 'NIH-ODS' }
+        ],
+        avoid: []
+      },
+      // ── 곡류 ──
+      '흰쌀밥': {
+        good: [
+          { with: '채소·콩·달걀', reason: '식이섬유·단백질이 혈당 상승 완화', src: 'KDA 2023' }
+        ],
+        avoid: [
+          { with: '단 음료·디저트 동시', reason: '혈당 급상승 위험 (당뇨 주의)', src: 'KDA 2023' }
+        ]
+      },
+      '현미밥': {
+        good: [
+          { with: '콩·두부', reason: '필수아미노산 보완 (라이신)', src: 'WHO' },
+          { with: '나물·채소', reason: 'GI 추가 완화 + 미네랄 보강', src: 'KDA 2023' }
+        ],
+        avoid: []
+      },
+      '라면': {
+        good: [
+          { with: '계란·두부·채소', reason: '단백질·섬유질 추가로 혈당 완화', src: 'KDA 2023' }
+        ],
+        avoid: [
+          { with: '추가 김치 국물·간장', reason: '나트륨 1일 권장 초과 위험', src: 'KSH 2022' }
+        ]
+      },
+      '국수': {
+        good: [
+          { with: '채소·달걀', reason: '단백질·섬유질로 혈당 완화', src: 'KDA' }
+        ],
+        avoid: []
+      },
+      '떡볶이': {
+        good: [
+          { with: '삶은 달걀·어묵', reason: '단백질로 혈당 완화', src: 'KDA' }
+        ],
+        avoid: [
+          { with: '단 음료·튀김 동시', reason: '혈당+포화지방 동시 부담', src: 'KSoLA' }
+        ]
+      },
+      '김밥': {
+        good: [
+          { with: '미역국·채소', reason: '나트륨 배설 촉진 + 영양 균형', src: 'KSH' }
+        ],
+        avoid: []
+      },
+      '파스타': {
+        good: [
+          { with: '닭고기·해산물·올리브유', reason: '단백질·불포화지방 균형', src: 'KSoLA' }
+        ],
+        avoid: []
+      },
+      // ── 단백질 ──
+      '닭가슴살': {
+        good: [
+          { with: '브로콜리·고추·레몬', reason: '비타민C로 회복 보조 + 철분 흡수↑', src: 'NIH-ODS' }
+        ],
+        avoid: []
+      },
+      '계란': {
+        good: [
+          { with: '시금치·아보카도', reason: '엽산·지용성 비타민 흡수↑', src: 'NIH-ODS' }
+        ],
+        avoid: []
+      },
+      '두부': {
+        good: [
+          { with: '미역·다시마', reason: '칼슘·요오드·마그네슘 보완', src: 'MFDS' },
+          { with: '버섯·채소', reason: '단백질 + 식이섬유 균형', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '시금치 다량 동시', reason: '옥살산이 칼슘 흡수 일부 저해 (양 적당)', src: 'NIH-ODS' }
+        ]
+      },
+      '연어': {
+        good: [
+          { with: '레몬·올리브유·채소', reason: '오메가3 흡수 + 항산화 시너지', src: 'KSoLA' }
+        ],
+        avoid: []
+      },
+      '삼겹살': {
+        good: [
+          { with: '쌈채소·마늘·고추', reason: '식이섬유·항산화로 포화지방 완화', src: 'KSoLA' }
+        ],
+        avoid: [
+          { with: '흰쌀밥+단 음료 동시', reason: '포화지방+단순당 중복 부담', src: 'KSoLA' }
+        ]
+      },
+      '치킨': {
+        good: [
+          { with: '샐러드·무·피클', reason: '식이섬유로 포만감·기름기 완화', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '단 소스·콜라', reason: '나트륨+포화지방+단순당 삼중 부담', src: 'KSoLA' }
+        ]
+      },
+      '스테이크': {
+        good: [
+          { with: '아스파라거스·시금치', reason: '철분(헴) + 비타민C로 흡수↑', src: 'NIH-ODS' }
+        ],
+        avoid: []
+      },
+      // ── 국·찌개 ──
+      '김치찌개': {
+        good: [
+          { with: '두부·계란·채소', reason: '단백질 보강 + 자극 완화', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '추가 소금·간장', reason: '나트륨 과다 (고혈압 주의)', src: 'KSH 2022' }
+        ]
+      },
+      '된장찌개': {
+        good: [
+          { with: '두부·애호박·버섯', reason: '식물성 단백질 + 식이섬유 시너지', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '추가 소금', reason: '나트륨 과다 위험', src: 'KSH 2022' }
+        ]
+      },
+      '순두부찌개': {
+        good: [
+          { with: '계란·해산물', reason: '단백질·미네랄 보완', src: 'NIH' }
+        ],
+        avoid: []
+      },
+      // ── 발효·유제품 ──
+      '김치': {
+        good: [
+          { with: '곡류·단백질', reason: '프로바이오틱스 + 영양 균형', src: 'MFDS' }
+        ],
+        avoid: [
+          { with: '소금 추가 음식 다량', reason: '나트륨 누적', src: 'KSH 2022' }
+        ]
+      },
+      '우유': {
+        good: [
+          { with: '시리얼·견과', reason: '칼슘 + 비타민D 보강 시 흡수↑', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '시금치·녹차 동시 다량', reason: '옥살산·탄닌이 칼슘 흡수 저해', src: 'NIH-ODS' },
+          { with: '철분제 복용 시', reason: '칼슘이 철분 흡수 저해 — 2시간 간격', src: 'FDA' }
+        ]
+      },
+      // ── 음료 ──
+      '아메리카노': {
+        good: [],
+        avoid: [
+          { with: '철분 풍부 식사 직후', reason: '카페인·탄닌이 철분 흡수 저해 — 1시간 간격', src: 'NIH-ODS' },
+          { with: '칼슘 보충제 직후', reason: '카페인 이뇨 작용으로 칼슘 배설↑', src: 'NIH-ODS' }
+        ]
+      },
+      '라떼': {
+        good: [
+          { with: '아침 식사', reason: '칼슘·단백질 보충', src: 'NIH-ODS' }
+        ],
+        avoid: []
+      },
+      // ── 기타 ──
+      '고구마': {
+        good: [
+          { with: '우유·요거트', reason: '베타카로틴 지방과 함께 흡수↑', src: 'NIH-ODS' },
+          { with: '견과류', reason: '단백질·지방으로 혈당 완화', src: 'KDA' }
+        ],
+        avoid: []
+      }
+    };
+
+    // 음식명이 정확히 일치하지 않을 때 부분 일치 룩업 (Gemini 응답 변형 대응)
+    function lookupInteraction(name) {
+      if (!name) return null;
+      if (INTERACTION_DB[name]) return INTERACTION_DB[name];
+      // 부분 매칭 — "현미 비빔밥" → "현미밥" 같은 케이스
+      for (const key of Object.keys(INTERACTION_DB)) {
+        if (name.includes(key) || key.includes(name)) return INTERACTION_DB[key];
+      }
+      return null;
+    }
+
+    // 영양 합산 기반 일반 권고 (음식 페어와 별도) — 출처 표시
+    const NUTRIENT_RULES = [
+      { when: t => t.fiber < 5, type: 'good', label: '녹색채소·잡곡', reason: '섬유질 1일 25g 미달 — 보충 권장', src: 'WHO' },
+      { when: t => t.p < 15, type: 'good', label: '두부·계란·살코기', reason: '한 끼 단백질 20~30g 권장 (성인 기준)', src: 'KDA' },
+      { when: t => t.sodium > 1500, type: 'avoid', label: '추가 간·국물', reason: '나트륨 1일 2,000mg 이내 권고', src: 'KSH 2022' },
+      { when: t => t.sugar > 25, type: 'avoid', label: '단 음료·디저트', reason: 'WHO 1일 첨가당 25g 이내 권고', src: 'WHO' },
+      { when: t => t.c > 70 && t.fiber < 5, type: 'avoid', label: '단순당 추가 섭취', reason: '혈당 급상승 위험', src: 'KDA 2023' }
+    ];
+
     // ============== STATE ==============
     let state = {
       profile: null,
@@ -3426,10 +3676,34 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
           ` : ''}
 
           <div class="divider"></div>
-          <div style="font-size:13px; color:var(--muted); margin-bottom:6px;">궁합</div>
-          <div class="chips">
-            ${pairings.good.map(g => `<span class="chip good">👍 ${g}</span>`).join('')}
-            ${pairings.avoid.map(g => `<span class="chip avoid">👎 ${g}</span>`).join('')}
+          <div style="font-size:13px; color:var(--muted); margin-bottom:8px; font-weight:600;">
+            🍽 이 음식과 잘 맞는 / 피할 음식
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${pairings.good.map(g => `
+              <div style="background:rgba(16,185,129,.08); border:1px solid rgba(16,185,129,.2); border-radius:10px; padding:8px 10px;">
+                <div style="font-size:13px; font-weight:700; color:#6ee7b7;">👍 ${g.label}</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:3px; line-height:1.5;">
+                  ${g.reason} <span style="color:#10b981; font-weight:600; font-size:10px; margin-left:2px;">· ${g.src}</span>
+                </div>
+              </div>
+            `).join('')}
+            ${pairings.avoid.map(g => `
+              <div style="background:rgba(239,68,68,.07); border:1px solid rgba(239,68,68,.2); border-radius:10px; padding:8px 10px;">
+                <div style="font-size:13px; font-weight:700; color:#fca5a5;">👎 ${g.label}</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:3px; line-height:1.5;">
+                  ${g.reason} <span style="color:#ef4444; font-weight:600; font-size:10px; margin-left:2px;">· ${g.src}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div style="margin-top:10px; padding:10px; background:rgba(245,158,11,.06); border-left:3px solid #f59e0b; border-radius:6px; font-size:10.5px; color:#fcd34d; line-height:1.65;">
+            ⚠️ <b>면책 고지</b> · 본 궁합·영양 정보는 NIH·FDA·식약처·관련 학회(KDA·KSH·KSoLA·WHO) 가이드라인을 참고한
+            <b>일반 영양 권고</b>이며 의학적 진단·처방·치료를 대체하지 않습니다.
+            개인의 <b>체질·기저질환·복용약·소화 능력·알레르기</b>에 따라 결과가 다를 수 있어요.
+            만성질환자·임산부·수유부·소아·약 복용 중인 분은 반드시 <b>의사·약사·영양사</b> 상담 후 식단 결정.
+            <span style="opacity:.7;">(식품등의 표시·광고에 관한 법률상 효능·기능성 표시가 아니며, 본 정보 의존으로 발생한 손해에 회사는 책임지지 않습니다.)</span>
           </div>
 
           <div class="divider"></div>
@@ -3458,15 +3732,44 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       `;
     }
 
+    // 음식 페어링 + 영양 합산 권고를 객체 배열로 반환
+    // 각 항목: { label, reason, src }  → UI에서 칩+근거+출처 표시
     function getPairings(items, t) {
       const good = [];
       const avoid = [];
-      if (t.fiber < 5) good.push('녹색채소');
-      if (t.p < 15) good.push('두부·계란');
-      if (t.sodium > 1000) avoid.push('추가 간');
-      if (t.sugar > 15) avoid.push('단 음료');
-      if (t.c > 70) avoid.push('흰쌀밥 추가');
-      if (!good.length) good.push('물 한 잔');
+      const seen = new Set();   // (label) 중복 제거
+
+      // 1) 분석된 음식 자체로 DB 조회 (의학 근거 페어)
+      (items || []).forEach(it => {
+        const data = lookupInteraction(it && it.name);
+        if (!data) return;
+        (data.good || []).forEach(p => {
+          if (seen.has('g:' + p.with)) return;
+          seen.add('g:' + p.with);
+          good.push({ label: p.with, reason: p.reason, src: p.src });
+        });
+        (data.avoid || []).forEach(p => {
+          if (seen.has('a:' + p.with)) return;
+          seen.add('a:' + p.with);
+          avoid.push({ label: p.with, reason: p.reason, src: p.src });
+        });
+      });
+
+      // 2) 영양 합산 규칙 (DB 미히트 시에도 일반 권고 제공)
+      NUTRIENT_RULES.forEach(rule => {
+        if (!rule.when(t)) return;
+        const target = rule.type === 'good' ? good : avoid;
+        const dupKey = rule.type[0] + ':' + rule.label;
+        if (seen.has(dupKey)) return;
+        seen.add(dupKey);
+        target.push({ label: rule.label, reason: rule.reason, src: rule.src });
+      });
+
+      // 3) 완전 비어 있으면 기본 권고
+      if (good.length === 0 && avoid.length === 0) {
+        good.push({ label: '물 한 잔', reason: '소화·대사에 도움', src: 'NIH' });
+      }
+
       return { good, avoid };
     }
 
