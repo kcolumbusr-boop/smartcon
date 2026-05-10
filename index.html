@@ -6884,13 +6884,9 @@ JSON 형식:
       const statusEl = document.getElementById('installStatus');
       if (!card) return;
 
-      // 이미 설치 상태면 숨김
+      // 이미 standalone PWA로 실행 중이면 카드 자체 숨김 (설치 안내 불필요)
       if (isStandalone()) {
-        card.style.display = 'block';
-        btn.style.display = 'none';
-        manualBtn.style.display = 'none';
-        if (statusEl) { statusEl.textContent = '설치됨'; statusEl.className = 'install-status installed'; }
-        sub.textContent = '이미 앱으로 실행 중입니다 ✓';
+        card.style.display = 'none';
         return;
       }
 
