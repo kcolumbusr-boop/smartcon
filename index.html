@@ -1683,6 +1683,328 @@
           { with: '견과류', reason: '단백질·지방으로 혈당 완화', src: 'KDA' }
         ],
         avoid: []
+      },
+      // ── 한식 추가 ──
+      '비빔밥': {
+        good: [
+          { with: '고추장 적당량·나물 다양', reason: '식이섬유·항산화 시너지', src: 'MFDS' }
+        ],
+        avoid: [
+          { with: '단 음료 동시', reason: '탄수+단순당 중복 부담', src: 'KDA' }
+        ]
+      },
+      '불고기': {
+        good: [
+          { with: '깻잎·마늘·양파', reason: '항산화 폴리페놀이 산화지방 완화', src: 'KSoLA' }
+        ],
+        avoid: [
+          { with: '흰쌀밥+단 음료', reason: '포화지방+단순당 중복', src: 'KSoLA' }
+        ]
+      },
+      '갈비': {
+        good: [
+          { with: '쌈채소·마늘', reason: '식이섬유·항산화 보강', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '추가 소금·간장', reason: '나트륨 누적 (고혈압 주의)', src: 'KSH 2022' }
+        ]
+      },
+      '잡채': {
+        good: [
+          { with: '단백질 토핑(소고기·계란)', reason: '탄수 위주를 균형 식사로', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '흰쌀밥 다량 동시', reason: '탄수 중복 — 혈당 부담', src: 'KDA' }
+        ]
+      },
+      '부대찌개': {
+        good: [
+          { with: '두부·채소 추가', reason: '단백질·식이섬유 보강', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '추가 소금·라면사리·소시지', reason: '나트륨·가공육·포화지방 누적', src: 'KSoLA' }
+        ]
+      },
+      '미역국': {
+        good: [
+          { with: '두부·계란', reason: '요오드+칼슘+단백질 보완', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '갑상선 약 복용 시 다량', reason: '요오드가 약효에 영향 — 의사 상담', src: 'FDA' }
+        ]
+      },
+      '콩나물국': {
+        good: [
+          { with: '두부·달걀', reason: '단백질 보강 + 비타민C 흡수', src: 'NIH' }
+        ],
+        avoid: []
+      },
+      '닭갈비': {
+        good: [
+          { with: '쌈채소·콩나물', reason: '식이섬유로 매운맛 완화·포만감', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '떡·라면사리·치즈 추가', reason: '탄수+포화지방 누적', src: 'KSoLA' }
+        ]
+      },
+      '보쌈': {
+        good: [
+          { with: '쌈채소·새우젓·마늘', reason: '식이섬유·소화효소 보조', src: 'MFDS' }
+        ],
+        avoid: [
+          { with: '소주·막걸리 다량', reason: '알코올+포화지방 — 간 부담', src: 'WHO' }
+        ]
+      },
+      '족발': {
+        good: [
+          { with: '쌈채소·마늘·새우젓', reason: '식이섬유·미네랄 보강', src: 'NIH' }
+        ],
+        avoid: []
+      },
+      '부침개': {
+        good: [
+          { with: '채소·해산물 토핑', reason: '단백질·식이섬유 보강', src: 'NIH' }
+        ],
+        avoid: [
+          { with: '튀김유 재사용·과량', reason: '산화지방·트랜스지방 위험', src: 'KSoLA' }
+        ]
+      },
+      // ── 양식·기타 ──
+      '피자': {
+        good: [
+          { with: '샐러드·채소 토핑', reason: '식이섬유로 GI 완화', src: 'KDA' }
+        ],
+        avoid: [
+          { with: '콜라·튀김 동시', reason: '단순당+포화지방 중복', src: 'KSoLA' }
+        ]
+      },
+      '햄버거': {
+        good: [
+          { with: '물·채소 토핑', reason: '나트륨 배설·식이섬유', src: 'KSH' }
+        ],
+        avoid: [
+          { with: '감자튀김+콜라 세트', reason: '나트륨+포화지방+단순당 삼중', src: 'KSoLA' }
+        ]
+      },
+      '샌드위치': {
+        good: [
+          { with: '통밀빵·채소·계란', reason: '저GI·단백질 균형', src: 'KDA' }
+        ],
+        avoid: [
+          { with: '마요·소스 다량', reason: '포화지방·나트륨 누적', src: 'KSoLA' }
+        ]
+      },
+      '초밥': {
+        good: [
+          { with: '와사비·생강', reason: '소화 보조 + 항균(전통적 사용)', src: 'MFDS' }
+        ],
+        avoid: [
+          { with: '간장 다량 찍기', reason: '나트륨 1식 권장 초과 위험', src: 'KSH 2022' }
+        ]
+      },
+      '샐러드': {
+        good: [
+          { with: '닭가슴살·견과·올리브유', reason: '단백질+불포화지방+지용성 비타민 흡수↑', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '단 드레싱 다량', reason: '첨가당 누적', src: 'WHO' }
+        ]
+      },
+      // ── 채소·향신료 ──
+      '마늘': {
+        good: [
+          { with: '토마토·올리브유', reason: '알리신+라이코펜 항산화 시너지', src: 'PubMed 메타분석' }
+        ],
+        avoid: [
+          { with: '빈속에 다량 생마늘', reason: '위 자극·역류 가능 — 위염·역류성 식도염 주의', src: 'NIH' }
+        ]
+      },
+      '양파': {
+        good: [
+          { with: '토마토·생선', reason: '퀘르세틴+오메가3 항산화', src: 'PubMed' }
+        ],
+        avoid: []
+      },
+      '강황': {
+        good: [
+          { with: '후추·올리브유', reason: '피페린이 커큐민 흡수율 약 2000%↑ (Linus Pauling)', src: 'Linus Pauling' }
+        ],
+        avoid: [
+          { with: '항응고제 복용 시', reason: '출혈 경향 강화 가능 — 의사·약사 상담', src: 'FDA' }
+        ]
+      },
+      '후추': {
+        good: [
+          { with: '강황·기름 요리', reason: '피페린이 커큐민 흡수↑', src: 'Linus Pauling' }
+        ],
+        avoid: []
+      },
+      '생강': {
+        good: [
+          { with: '따뜻한 차·꿀', reason: '소화 보조·항염 보조 (전통적)', src: 'MFDS' }
+        ],
+        avoid: [
+          { with: '항응고제 복용 시 다량', reason: '출혈 경향 가능 — 약사 상담', src: 'FDA' }
+        ]
+      },
+      '깻잎': {
+        good: [
+          { with: '삼겹살·고기', reason: '항산화로 산화지방 완화', src: 'PubMed' }
+        ],
+        avoid: []
+      },
+      '콩나물': {
+        good: [
+          { with: '두부·계란', reason: '단백질·아스파라긴 시너지(해장 보조)', src: 'MFDS' }
+        ],
+        avoid: []
+      },
+      '오이': {
+        good: [
+          { with: '식초·레몬', reason: '비타민C 보존', src: 'NIH' }
+        ],
+        avoid: []
+      },
+      // ── 콩·견과 ──
+      '콩': {
+        good: [
+          { with: '곡류·현미', reason: '필수아미노산(라이신) 보완', src: 'WHO' }
+        ],
+        avoid: []
+      },
+      '두유': {
+        good: [
+          { with: '시리얼·과일', reason: '칼슘+비타민D+섬유질 균형', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '갑상선 약 복용 시', reason: '이소플라본이 약효 영향 가능 — 4시간 간격', src: 'FDA' }
+        ]
+      },
+      '호두': {
+        good: [
+          { with: '과일·요거트', reason: 'ALA-오메가3 + 항산화 시너지', src: 'KSoLA' }
+        ],
+        avoid: []
+      },
+      '아몬드': {
+        good: [
+          { with: '과일·다크초콜릿', reason: '비타민E + 폴리페놀 항산화', src: 'NIH-ODS' }
+        ],
+        avoid: []
+      },
+      '견과류': {
+        good: [
+          { with: '과일·요거트', reason: '지용성 비타민 흡수↑·포만감', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '과량 섭취', reason: '하루 28g(한 줌) 이내 권장 — 칼로리', src: 'KSoLA' }
+        ]
+      },
+      // ── 발효식품 ──
+      '청국장': {
+        good: [
+          { with: '두부·채소·현미밥', reason: '프로바이오틱스 + 식물성 단백질', src: 'MFDS' }
+        ],
+        avoid: [
+          { with: '추가 소금', reason: '나트륨 누적', src: 'KSH' }
+        ]
+      },
+      '요거트': {
+        good: [
+          { with: '과일·견과·꿀 약간', reason: '프로바이오틱스+섬유질+지용성 비타민', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '항생제 복용 직후', reason: '유산균 효과 저하 — 2시간 간격', src: 'FDA' }
+        ]
+      },
+      '낫토': {
+        good: [
+          { with: '현미밥·채소', reason: '비타민K2 + 나토키나제 + 섬유질', src: 'PubMed' }
+        ],
+        avoid: [
+          { with: '와파린 복용 시', reason: '비타민K2가 약효 변화 — 의사 상담 필수', src: 'FDA' }
+        ]
+      },
+      // ── 해산물 ──
+      '새우': {
+        good: [
+          { with: '마늘·올리브유·레몬', reason: '단백질+항산화+비타민C 흡수↑', src: 'NIH' }
+        ],
+        avoid: []
+      },
+      '오징어': {
+        good: [
+          { with: '양파·고추', reason: '타우린+항산화 시너지', src: 'MFDS' }
+        ],
+        avoid: []
+      },
+      '굴': {
+        good: [
+          { with: '레몬·채소', reason: '아연+비타민C 면역 시너지', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '날 굴 + 면역저하·임산부', reason: '비브리오 등 식중독 위험', src: 'MFDS' }
+        ]
+      },
+      '미역': {
+        good: [
+          { with: '두부·새우', reason: '요오드+칼슘+단백질 보완', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '갑상선 질환자 다량', reason: '요오드 과다 — 의사 상담', src: 'FDA' }
+        ]
+      },
+      '다시마': {
+        good: [
+          { with: '두부·국물요리', reason: '요오드+칼슘 보강', src: 'MFDS' }
+        ],
+        avoid: [
+          { with: '갑상선 약 복용 시', reason: '요오드가 약효 영향', src: 'FDA' }
+        ]
+      },
+      // ── 과일 추가 ──
+      '오렌지': {
+        good: [
+          { with: '시금치·견과', reason: '비타민C + 비헴철·지용성 비타민', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '자몽과 혼동 주의·일부 약물', reason: '자몽은 CYP3A4 억제 — 약사 확인', src: 'FDA' }
+        ]
+      },
+      '키위': {
+        good: [
+          { with: '단백질 식사 후', reason: '액티니딘이 단백질 소화 보조', src: 'PubMed' }
+        ],
+        avoid: []
+      },
+      '블루베리': {
+        good: [
+          { with: '요거트·견과', reason: '안토시아닌+섬유질 시너지', src: 'NIH' }
+        ],
+        avoid: []
+      },
+      '포도': {
+        good: [
+          { with: '견과', reason: '폴리페놀+불포화지방', src: 'KSoLA' }
+        ],
+        avoid: [
+          { with: '항응고제·일부 약물', reason: '레스베라트롤이 약효 영향 — 약사 상담', src: 'FDA' }
+        ]
+      },
+      // ── 통곡·기타 ──
+      '시리얼': {
+        good: [
+          { with: '우유·과일', reason: '칼슘+비타민C+섬유질 균형', src: 'NIH-ODS' }
+        ],
+        avoid: [
+          { with: '당류 가공 시리얼 다량', reason: '첨가당·정제 곡물 — GI 상승', src: 'WHO' }
+        ]
+      },
+      '귀리': {
+        good: [
+          { with: '우유·과일', reason: '베타글루칸이 LDL 콜레스테롤 저하', src: 'KSoLA' }
+        ],
+        avoid: []
       }
     };
 
