@@ -1047,6 +1047,7 @@
 
     <div class="tabs">
       <div class="tab active" data-filter="all" onclick="setRecipeTab('all')">전체</div>
+      <div class="tab" data-filter="favorites" onclick="setRecipeTab('favorites')">❤️ 즐겨찾기</div>
       <div class="tab" data-filter="available" onclick="setRecipeTab('available')">가능</div>
       <div class="tab" data-filter="expire" onclick="setRecipeTab('expire')">만료 활용</div>
       <div class="tab" data-filter="goal" onclick="setRecipeTab('goal')">목표 맞춤</div>
@@ -6353,7 +6354,15 @@ JSON 형식:
         const sDiverse = isRepeat ? 0 : 10;
         if (!isRepeat && ctx.recentNames.size >= 3) reasons.push('다양성');
 
-        const total = blockedByAllergy ? -100 : (sIngredient + sNutrition + sGoal + sExpire + sTime + sDiverse);
+        // 8) 사용자 피드백 — 즐겨찾기 +15, 평점 4~5 +10, 평점 1~2 −10
+        let sFeedback = 0;
+        const isFav = isRecipeFavorite(r.id);
+        const stars = getRecipeRating(r.id);
+        if (isFav) { sFeedback += 15; reasons.push('❤️ 즐겨찾기'); }
+        if (stars >= 4) { sFeedback += 10; reasons.push(`⭐${stars} 평가`); }
+        else if (stars > 0 && stars <= 2) { sFeedback -= 10; }
+
+        const total = blockedByAllergy ? -100 : (sIngredient + sNutrition + sGoal + sExpire + sTime + sDiverse + sFeedback);
 
         return {
           ...r,
@@ -6363,6 +6372,8 @@ JSON 형식:
           allergyBlocked: blockedByAllergy,
           score: total,
           reasons,
+          userRating: stars,
+          userFavorite: isFav,
           // caution 매칭은 점수 미감산, UI 경고만 남김
           cautionMatch: (r.caution || []).filter(c => ctx.cautionGroups.some(g => c.includes(g)))
         };
@@ -6380,6 +6391,47 @@ JSON 형식:
         diet: '다이어트', muscle: '근육', diabetes: '혈당',
         hypertension: '고혈압', cholesterol: '콜레스테롤', general: '균형'
       })[goal] || '균형';
+    }
+
+    // ─── 레시피 사용자 피드백 (평점·즐겨찾기) ───
+    // 마이그레이션: 기존 사용자에게 신규 필드 자동 보강
+    function ensureRecipeFeedbackFields() {
+      if (!state.profile) return;
+      if (!state.profile.recipeRatings) state.profile.recipeRatings = {};
+      if (!state.profile.recipeFavorites) state.profile.recipeFavorites = [];
+    }
+    function getRecipeRating(id) {
+      ensureRecipeFeedbackFields();
+      return state.profile.recipeRatings[id] || 0;
+    }
+    function isRecipeFavorite(id) {
+      ensureRecipeFeedbackFields();
+      return state.profile.recipeFavorites.includes(id);
+    }
+    function setRecipeRating(id, stars) {
+      ensureRecipeFeedbackFields();
+      const s = Math.max(0, Math.min(5, Math.round(Number(stars) || 0)));
+      if (s === 0) delete state.profile.recipeRatings[id];
+      else state.profile.recipeRatings[id] = s;
+      save();
+      // 모달이 열려있으면 모달 갱신, 그렇지 않으면 화면 갱신
+      const r = RECIPES.find(x => x.id === id);
+      if (r) openRecipeDetail(id);
+      if (document.getElementById('screen-recipes')?.classList.contains('active')) renderRecipes();
+      if (document.getElementById('screen-home')?.classList.contains('active')) renderHome();
+      showToast(s === 0 ? '평점 해제' : `⭐ ${s}점 평가 — 추천에 반영`);
+    }
+    function toggleRecipeFavorite(id) {
+      ensureRecipeFeedbackFields();
+      const idx = state.profile.recipeFavorites.indexOf(id);
+      if (idx >= 0) state.profile.recipeFavorites.splice(idx, 1);
+      else state.profile.recipeFavorites.push(id);
+      save();
+      const r = RECIPES.find(x => x.id === id);
+      if (r) openRecipeDetail(id);
+      if (document.getElementById('screen-recipes')?.classList.contains('active')) renderRecipes();
+      if (document.getElementById('screen-home')?.classList.contains('active')) renderHome();
+      showToast(idx >= 0 ? '즐겨찾기 해제' : `❤️ 즐겨찾기 — 추천 우선 노출`);
     }
 
     // 호환: 기존 호출자(renderHome)는 pickRecipes(n)을 사용 중
@@ -6414,6 +6466,7 @@ JSON 형식:
       // 탭 필터 (추천 점수 기반 정렬은 유지)
       if (recipeTab === 'available') recipes = recipes.filter(r => r.matchPct >= 0.5);
       else if (recipeTab === 'expire') recipes = recipes.filter(r => r.usesExpiring);
+      else if (recipeTab === 'favorites') recipes = recipes.filter(r => r.userFavorite || r.userRating >= 4);
       else if (recipeTab === 'goal') {
         recipes = recipes.filter(r => (r.goals || []).includes(ctx.goal) || (r.goals || []).includes('general'));
       }
@@ -6451,11 +6504,14 @@ JSON 형식:
         const badges = nutritionBadges(r);
         const reasonText = (r.reasons || []).slice(0, 2).join(' · ');
         const cautionText = (r.cautionMatch || []).length > 0 ? '⚠️ 주의 안내' : '';
+        const stars = r.userRating || 0;
+        const starText = stars > 0 ? '⭐'.repeat(stars) : '';
         return `
-        <div class="recipe-card" onclick="openRecipeDetail(${escapeJsAttr(r.id)})">
+        <div class="recipe-card" onclick="openRecipeDetail(${escapeJsAttr(r.id)})" style="position:relative;">
+          ${r.userFavorite ? '<div style="position:absolute; top:8px; right:8px; font-size:18px; z-index:1; filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));">❤️</div>' : ''}
           <div class="recipe-head" style="background: linear-gradient(135deg, #065f46, #0f766e);">${r.emoji}</div>
           <div class="recipe-body">
-            <div class="recipe-title">${escapeHtml(r.title)}</div>
+            <div class="recipe-title">${escapeHtml(r.title)}${starText ? ` <span style="font-size:11px; color:#fbbf24;">${starText}</span>` : ''}</div>
             <div class="recipe-meta">⏱ ${r.time}분 · ${escapeHtml(r.difficulty)} · ${r.nutrition.kcal}kcal · 재료 ${r.matched}/${r.ingredients.length}</div>
             <div class="chips" style="margin-top:6px;">
               ${badges.map(b => `<span class="chip" style="background:rgba(16,185,129,.15); color:#6ee7b7;">${b.label}</span>`).join('')}
@@ -6599,6 +6655,24 @@ JSON 형식:
             ${r.caution.map(c => `<li>${escapeHtml(c)}</li>`).join('')}
           </ul>
         ` : ''}
+
+        <div class="card-title" style="margin-top:6px;">⭐ 이 레시피 어떠셨나요?</div>
+        <div style="background:rgba(0,0,0,.2); border-radius:10px; padding:12px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
+            <div style="font-size:12px; color:var(--muted);">평가하면 추천이 학습됩니다</div>
+            <button class="btn btn-ghost btn-small" onclick="toggleRecipeFavorite(${escapeJsAttr(r.id)})" style="padding:6px 12px; ${isRecipeFavorite(r.id) ? 'background:rgba(239,68,68,.18); color:#fca5a5;' : ''}">
+              ${isRecipeFavorite(r.id) ? '❤️ 즐겨찾기 됨' : '🤍 즐겨찾기'}
+            </button>
+          </div>
+          <div style="display:flex; gap:6px; justify-content:center;">
+            ${[1,2,3,4,5].map(n => {
+              const filled = getRecipeRating(r.id) >= n;
+              return `<button type="button" onclick="setRecipeRating(${escapeJsAttr(r.id)}, ${n})"
+                style="cursor:pointer; background:none; border:none; padding:4px 6px; font-size:24px; color:${filled ? '#fbbf24' : '#475569'};">${filled ? '⭐' : '☆'}</button>`;
+            }).join('')}
+            ${getRecipeRating(r.id) > 0 ? `<button type="button" onclick="setRecipeRating(${escapeJsAttr(r.id)}, 0)" style="cursor:pointer; background:none; border:none; padding:4px 8px; font-size:11px; color:var(--muted); align-self:center;">해제</button>` : ''}
+          </div>
+        </div>
 
         <div style="margin-top:8px; padding:10px 12px; background:rgba(245,158,11,.06); border-left:3px solid #f59e0b; border-radius:6px; font-size:10.5px; color:#fcd34d; line-height:1.65;">
           ⚠️ <b>면책 고지</b> · 본 영양 정보는 ${escapeHtml(r.source || 'MFDS')} 등 가이드라인 기반의
