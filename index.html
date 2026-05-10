@@ -1151,6 +1151,27 @@
       </div>
     </div>
 
+    <!-- 건강 목표 (체중·공복혈당) -->
+    <div class="card">
+      <div class="card-title">🎯 건강 목표</div>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+        목표를 설정하면 30일 추이 차트에 목표선이 표시되고, 추세가 벗어날 때 알림을 받습니다.
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+        <div>
+          <label for="goalWeightInput" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px;">⚖️ 체중 (kg)</label>
+          <input type="number" id="goalWeightInput" step="0.1" inputmode="decimal" placeholder="예: 65" oninput="onGoalWeightInput(this.value)" />
+        </div>
+        <div>
+          <label for="goalBloodSugarInput" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px;">🩸 공복혈당 (mg/dL)</label>
+          <input type="number" id="goalBloodSugarInput" step="1" inputmode="numeric" placeholder="예: 95" oninput="onGoalBloodSugarInput(this.value)" />
+        </div>
+      </div>
+      <div id="goalRangeHint" style="font-size:10.5px; color:var(--muted); margin-top:8px; line-height:1.6;">
+        💡 일반 권장: 공복혈당 70~99 mg/dL (당뇨병학회), 체중은 BMI 18.5~22.9 kg/m² 범위
+      </div>
+    </div>
+
     <!-- 알레르기 — 레시피 자동 제외에 사용 (식약처 8대 알레르겐) -->
     <div class="card">
       <div class="card-title">🚫 알레르기 (레시피 자동 제외)</div>
@@ -4127,6 +4148,8 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         targetFat: Math.round(tdee * 0.25 / 9),
         allergies: [],            // 식약처 8대 알레르겐 — 프로필 화면에서 토글 (레시피 자동 제외에 사용)
         medications: [],          // 복용약 카테고리 (Pro 기능) — 음식·레시피 상호작용 경고
+        targetWeight: null,       // 건강 목표 — 체중 (kg)
+        targetBloodSugar: null,   // 건강 목표 — 공복혈당 (mg/dL)
         createdAt: new Date().toISOString()
       };
 
@@ -7882,24 +7905,29 @@ JSON 형식:
       if (!values || values.length === 0) return '';
       const valid = values.filter(v => v != null && !isNaN(v));
       if (valid.length === 0) return '';
-      const min = Math.min(...valid);
-      const max = Math.max(...valid);
+      let min = Math.min(...valid);
+      let max = Math.max(...valid);
+      // 목표선이 있으면 차트 범위 포함
+      const target = (opts.target != null && !isNaN(opts.target)) ? Number(opts.target) : null;
+      if (target != null) { min = Math.min(min, target); max = Math.max(max, target); }
       const range = (max - min) || 1;
       const stepX = w / Math.max(1, values.length - 1);
+      const yOf = (v) => h - ((v - min) / range) * (h - 4) - 2;
       const points = values.map((v, i) => {
         if (v == null || isNaN(v)) return null;
-        const x = i * stepX;
-        const y = h - ((v - min) / range) * (h - 4) - 2;
-        return [x, y];
+        return [i * stepX, yOf(v)];
       }).filter(Boolean);
+      const targetLine = target != null
+        ? `<line x1="0" y1="${yOf(target).toFixed(1)}" x2="${w}" y2="${yOf(target).toFixed(1)}" stroke="${opts.targetColor || '#fbbf24'}" stroke-width="1" stroke-dasharray="2,3" opacity=".7"/>`
+        : '';
       if (points.length < 2) {
-        // 단일 점은 가로선으로 표시
         const y = h / 2;
-        return `<svg width="${w}" height="${h}" style="display:block;"><line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="${color}" stroke-width="2" stroke-dasharray="3,3" opacity=".5"/><circle cx="${w/2}" cy="${y}" r="3" fill="${color}"/></svg>`;
+        return `<svg width="${w}" height="${h}" style="display:block;">${targetLine}<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="${color}" stroke-width="2" stroke-dasharray="3,3" opacity=".5"/><circle cx="${w/2}" cy="${y}" r="3" fill="${color}"/></svg>`;
       }
       const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
       const last = points[points.length - 1];
       return `<svg width="${w}" height="${h}" style="display:block;">
+        ${targetLine}
         <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3" fill="${color}"/>
       </svg>`;
@@ -7948,9 +7976,11 @@ JSON 형식:
         `;
         return;
       }
+      const targetWeight = state.profile && state.profile.targetWeight;
+      const targetBS = state.profile && state.profile.targetBloodSugar;
       const trends = [
-        { metric: 'weight', icon: '⚖️', label: '체중', unit: 'kg', color: '#10b981' },
-        { metric: 'blood_sugar', icon: '🩸', label: '공복혈당', unit: 'mg/dL', color: '#ef4444' },
+        { metric: 'weight', icon: '⚖️', label: '체중', unit: 'kg', color: '#10b981', target: targetWeight },
+        { metric: 'blood_sugar', icon: '🩸', label: '공복혈당', unit: 'mg/dL', color: '#ef4444', target: targetBS },
         { metric: 'sleep', icon: '😴', label: '수면', unit: '시간', color: '#a78bfa' },
         { metric: 'steps', icon: '👟', label: '걸음', unit: '보', color: '#fbbf24' }
       ];
@@ -7964,9 +7994,17 @@ JSON 형식:
         const pct = first > 0 ? Math.round((delta / first) * 100) : 0;
         const sign = delta > 0 ? '↑' : (delta < 0 ? '↓' : '→');
         const arrowColor = (t.metric === 'weight' || t.metric === 'blood_sugar')
-          ? (delta > 0 ? '#f87171' : (delta < 0 ? '#6ee7b7' : 'var(--muted)'))   // 낮을수록 좋음
-          : (delta > 0 ? '#6ee7b7' : (delta < 0 ? '#f87171' : 'var(--muted)'));  // 높을수록 좋음
-        const spark = buildSparkline(series.map(v => v == null ? null : Number(v)), t.color, 140, 36);
+          ? (delta > 0 ? '#f87171' : (delta < 0 ? '#6ee7b7' : 'var(--muted)'))
+          : (delta > 0 ? '#6ee7b7' : (delta < 0 ? '#f87171' : 'var(--muted)'));
+        const spark = buildSparkline(series.map(v => v == null ? null : Number(v)), t.color, 140, 36, { target: t.target });
+        // 목표 대비 현재값 차이 표시
+        let goalLine = '';
+        if (t.target != null && typeof last === 'number') {
+          const diff = last - t.target;
+          const diffStr = (Math.abs(diff) < 0.05) ? '목표 도달 ✓' : (diff > 0 ? `+${diff.toFixed(t.metric === 'weight' ? 1 : 0)} ${t.unit}` : `${diff.toFixed(t.metric === 'weight' ? 1 : 0)} ${t.unit}`);
+          const goalColor = Math.abs(diff) < (t.metric === 'weight' ? 0.5 : 5) ? '#6ee7b7' : '#fbbf24';
+          goalLine = `<div style="font-size:10.5px; color:${goalColor}; margin-top:2px;">🎯 목표 ${t.target} → ${escapeHtml(diffStr)}</div>`;
+        }
         return `
           <div style="display:flex; align-items:center; gap:10px; padding:10px; background:rgba(0,0,0,.2); border-radius:10px;">
             <div style="font-size:22px; flex-shrink:0;">${t.icon}</div>
@@ -7980,6 +8018,7 @@ JSON 형식:
                 ${valid.length >= 2 ? `<div style="font-size:11px; font-weight:700; color:${arrowColor};">${sign} ${Math.abs(pct)}%</div>` : ''}
               </div>
               ${spark}
+              ${goalLine}
             </div>
           </div>
         `;
@@ -8302,6 +8341,8 @@ JSON 형식:
           ks.innerHTML = '<span style="color:#f87171;">● 미연결 (모의 모드)</span>';
         }
       }
+      // 건강 목표 입력값 동기화 (체중·공복혈당)
+      renderGoalInputs();
       // 알레르기 칩 (8대 표준) — 토글로 추가/제거
       renderAllergyChips();
       // 약물 카테고리 칩 (Pro 기능)
@@ -8327,6 +8368,42 @@ JSON 형식:
           ${on ? '🚫 ' : ''}${escapeHtml(a)}
         </button>`;
       }).join('');
+    }
+
+    // ─── 건강 목표 (체중·공복혈당) ───
+    // 200ms debounce로 입력 즉시 저장 + 추이 차트 갱신
+    let __goalSaveTimer = null;
+    function ensureGoalFields() {
+      if (!state.profile) return;
+      if (state.profile.targetWeight === undefined) state.profile.targetWeight = null;
+      if (state.profile.targetBloodSugar === undefined) state.profile.targetBloodSugar = null;
+    }
+    function onGoalWeightInput(value) {
+      ensureGoalFields();
+      const n = parseFloat(value);
+      state.profile.targetWeight = (isNaN(n) || n <= 0) ? null : Math.max(20, Math.min(300, n));
+      scheduleGoalSave();
+    }
+    function onGoalBloodSugarInput(value) {
+      ensureGoalFields();
+      const n = parseFloat(value);
+      state.profile.targetBloodSugar = (isNaN(n) || n <= 0) ? null : Math.max(40, Math.min(400, n));
+      scheduleGoalSave();
+    }
+    function scheduleGoalSave() {
+      if (__goalSaveTimer) clearTimeout(__goalSaveTimer);
+      __goalSaveTimer = setTimeout(() => {
+        save();
+        // 리포트 화면이 보이고 있으면 차트에 목표선 즉시 반영
+        if (document.getElementById('screen-report')?.classList.contains('active')) renderHealthTrends();
+      }, 200);
+    }
+    function renderGoalInputs() {
+      ensureGoalFields();
+      const w = document.getElementById('goalWeightInput');
+      const bs = document.getElementById('goalBloodSugarInput');
+      if (w) w.value = state.profile.targetWeight != null ? state.profile.targetWeight : '';
+      if (bs) bs.value = state.profile.targetBloodSugar != null ? state.profile.targetBloodSugar : '';
     }
 
     function toggleAllergy(a) {
@@ -8931,6 +9008,47 @@ JSON 형식:
       if (!state.profile || !state.settings || !state.settings.notifications) return;
       checkExpiringInventoryNotifications();
       checkMealTimeReminder();
+      checkGoalTrendDeviation();
+    }
+
+    // 7일 평균이 목표에서 임계 이상 벗어나면 주 1회 알림
+    function checkGoalTrendDeviation() {
+      const todayKey = localDateKey();
+      const lastShown = state.settings.__goalTrendLast;
+      // 7일 간격 (월요일 지나면 다시)
+      if (lastShown) {
+        const days = (new Date(todayKey) - new Date(lastShown)) / 86400000;
+        if (days >= 0 && days < 7) return;
+      }
+      const recent7 = (date, days) => {
+        const cutoff = Date.now() - days * 86400000;
+        return (state.health || []).filter(h => new Date(h.time).getTime() >= cutoff);
+      };
+      const avg = (arr, metric) => {
+        const filtered = arr.filter(h => h.metric === metric).map(h => Number(h.value)).filter(v => !isNaN(v));
+        return filtered.length ? filtered.reduce((s, v) => s + v, 0) / filtered.length : null;
+      };
+      const week = recent7(null, 7);
+
+      const messages = [];
+      // 체중: ±2kg 이상 벗어나면 알림
+      const tw = state.profile.targetWeight;
+      const aw = avg(week, 'weight');
+      if (tw != null && aw != null && Math.abs(aw - tw) >= 2) {
+        const diff = (aw - tw).toFixed(1);
+        messages.push(`체중 ${aw.toFixed(1)}kg (목표 ${tw}kg, ${diff > 0 ? '+' : ''}${diff})`);
+      }
+      // 공복혈당: ±15 mg/dL 이상 벗어나면 알림
+      const tb = state.profile.targetBloodSugar;
+      const ab = avg(week, 'blood_sugar');
+      if (tb != null && ab != null && Math.abs(ab - tb) >= 15) {
+        const diff = Math.round(ab - tb);
+        messages.push(`공복혈당 ${Math.round(ab)} mg/dL (목표 ${tb}, ${diff > 0 ? '+' : ''}${diff})`);
+      }
+      if (messages.length === 0) return;
+      notify('📊 건강 목표 추세', messages.join(' · ') + ' — 의사·영양사 상담 권장');
+      state.settings.__goalTrendLast = todayKey;
+      save();
     }
 
     // 만료 3일 이내 재료가 있으면 하루 1회 알림 (lastShownDate 기록으로 중복 방지)
