@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v34: Voice analysis robustness — Gemini retry + model fallback + local DB graceful fallback
-const CACHE_NAME = 'smartcon-v34-voice-fix';
+// v35: Export/Import UX — Web Share API + clipboard + download location hint per OS
+const CACHE_NAME = 'smartcon-v35-data-share';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
