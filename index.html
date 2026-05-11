@@ -4590,7 +4590,21 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         const todayMealsByType = {};
         todayMeals.forEach(m => { todayMealsByType[m.meal_type] = m; });
         const usedRecipeIds = new Set();
-        planEl.innerHTML = slots.map(s => {
+
+        // 30일 건강 추세 요약 (있으면 카드 상단에 한 줄 안내)
+        const tn = ctxPlan.healthTrendNeeds || {};
+        const trendBadges = [];
+        if (tn.lowKcal) trendBadges.push('체중↑');
+        if (tn.lowSugar) trendBadges.push('혈당↑');
+        if (tn.lowSodium) trendBadges.push('나트륨↑');
+        if (tn.highProtein) trendBadges.push('운동부족');
+        const trendHint = (ctxPlan.hasHealth && trendBadges.length > 0) ? `
+          <div style="margin-bottom:8px; padding:8px 10px; background:rgba(245,158,11,.08); border-left:3px solid #f59e0b; border-radius:6px; font-size:11px; color:#fcd34d; line-height:1.55;">
+            📊 30일 추세: <b>${trendBadges.join(' · ')}</b> — 추천이 이 추세를 보강하도록 조정되었습니다.
+          </div>
+        ` : '';
+
+        planEl.innerHTML = trendHint + slots.map(s => {
           const consumed = todayMealsByType[s.type];
           if (consumed) {
             const names = (consumed.items || []).map(i => escapeHtml(i.name)).join(', ') || '식사';
@@ -4605,11 +4619,25 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
               </div>
             `;
           }
-          // 추천: mealTime 매칭 + 아직 사용 안 한 레시피 중 점수 높은 것
-          const candidate = allRanked.find(r =>
-            (r.mealTime || []).includes(s.timeKey) && !usedRecipeIds.has(r.id)
-          ) || allRanked.find(r => !usedRecipeIds.has(r.id));
-          if (!candidate) {
+          // 끼니별 3개 추천 (시간대 매칭 우선, 중복 회피)
+          const candidates = [];
+          for (const r of allRanked) {
+            if (usedRecipeIds.has(r.id)) continue;
+            if (!(r.mealTime || []).includes(s.timeKey)) continue;
+            candidates.push(r);
+            if (candidates.length >= 3) break;
+          }
+          // 부족하면 시간대 무관 채움
+          if (candidates.length < 3) {
+            for (const r of allRanked) {
+              if (usedRecipeIds.has(r.id)) continue;
+              if (candidates.find(c => c.id === r.id)) continue;
+              candidates.push(r);
+              if (candidates.length >= 3) break;
+            }
+          }
+          candidates.forEach(c => usedRecipeIds.add(c.id));
+          if (candidates.length === 0) {
             return `
               <div style="display:flex; gap:10px; align-items:center; padding:10px; background:rgba(255,255,255,.03); border-radius:10px; margin-bottom:6px;">
                 <div style="font-size:18px; flex-shrink:0;">⏳</div>
@@ -4620,18 +4648,48 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
               </div>
             `;
           }
-          usedRecipeIds.add(candidate.id);
-          const reason = (candidate.reasons || [])[0] || '';
+          // 메인(1번 추천) + 펼침(2~3번)
+          const main = candidates[0];
+          const others = candidates.slice(1);
+          const reasons = (main.reasons || []).slice(0, 3);
+          const reasonsHtml = reasons.length > 0
+            ? `<div style="margin-top:4px; font-size:10.5px; color:#6ee7b7; line-height:1.5;">💡 ${reasons.map(r => escapeHtml(r)).join(' · ')}</div>`
+            : '';
+          const othersId = 'mealPlanMore_' + s.type;
           return `
-            <div onclick="openRecipeDetail(${escapeJsAttr(candidate.id)})" role="button" tabindex="0"
-              style="display:flex; gap:10px; align-items:center; padding:10px; background:rgba(0,0,0,.2); border-radius:10px; margin-bottom:6px; cursor:pointer;">
-              <div style="font-size:24px; flex-shrink:0;">${candidate.emoji}</div>
-              <div style="flex:1; min-width:0;">
-                <div style="font-size:11.5px; color:var(--muted); margin-bottom:2px;">${s.label} · 추천</div>
-                <div style="font-size:13px; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(candidate.title)}</div>
-                <div style="font-size:11px; color:var(--muted);">⏱ ${candidate.time}분 · ${candidate.nutrition?.kcal || 0}kcal${reason ? ` · 💡 ${escapeHtml(reason)}` : ''}</div>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:11px; color:var(--muted); font-weight:700; margin-bottom:4px; padding-left:2px;">${s.label} 추천</div>
+              <div onclick="openRecipeDetail(${escapeJsAttr(main.id)})" role="button" tabindex="0"
+                style="display:flex; gap:10px; align-items:center; padding:12px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.05); border-radius:10px; cursor:pointer;">
+                <div style="font-size:28px; flex-shrink:0;">${main.emoji}</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:14px; font-weight:800; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(main.title)}</div>
+                  <div style="font-size:11px; color:var(--muted); margin-top:1px;">⏱ ${main.time}분 · ${main.nutrition?.kcal || 0}kcal · 단백 ${Math.round(main.nutrition?.p || 0)}g</div>
+                  ${reasonsHtml}
+                </div>
+                <div style="font-size:18px; color:var(--muted); flex-shrink:0;">›</div>
               </div>
-              <div style="font-size:18px; color:var(--muted); flex-shrink:0;">›</div>
+              ${others.length > 0 ? `
+                <button type="button" onclick="(function(){const el=document.getElementById('${othersId}');if(el){const show=el.style.display==='none';el.style.display=show?'block':'none';this.textContent=show?'대안 숨기기 ▲':'대안 ${others.length}개 더 보기 ▼';}}).call(this)"
+                  style="width:100%; margin-top:4px; padding:6px; background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; text-align:center;">
+                  대안 ${others.length}개 더 보기 ▼
+                </button>
+                <div id="${othersId}" style="display:none; margin-top:4px;">
+                  ${others.map(r => {
+                    const rReasons = (r.reasons || []).slice(0, 2).join(' · ');
+                    return `
+                      <div onclick="openRecipeDetail(${escapeJsAttr(r.id)})" role="button" tabindex="0"
+                        style="display:flex; gap:8px; align-items:center; padding:8px 10px; background:rgba(0,0,0,.15); border-radius:8px; margin-top:4px; cursor:pointer;">
+                        <div style="font-size:18px; flex-shrink:0;">${r.emoji}</div>
+                        <div style="flex:1; min-width:0;">
+                          <div style="font-size:12px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(r.title)}</div>
+                          <div style="font-size:10.5px; color:var(--muted);">⏱ ${r.time}분 · ${r.nutrition?.kcal || 0}kcal${rReasons ? ' · ' + escapeHtml(rReasons) : ''}</div>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              ` : ''}
             </div>
           `;
         }).join('');
@@ -7648,12 +7706,69 @@ JSON 형식:
       // 알레르기
       const allergies = new Set(target.allergies || []);
 
+      // ─── 30일 건강 추세 분석 (정밀 추천 핵심) ───
+      // 7일 평균 vs 직전 7일 평균 비교로 변화 방향 추출
+      const m30 = (state.meals || []).filter(m => new Date(m.consumed_at) >= new Date(now.getTime() - 30 * 86400000));
+      const h30 = (state.health || []).filter(h => new Date(h.time) >= new Date(now.getTime() - 30 * 86400000));
+      const healthAvgRecent = (metric, w) => {
+        const cutoff = Date.now() - w * 86400000;
+        const arr = h30.filter(h => h.metric === metric && new Date(h.time).getTime() >= cutoff).map(h => Number(h.value)).filter(v => !isNaN(v));
+        return arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+      };
+      const healthTrend = (metric) => {
+        const recentAvg = healthAvgRecent(metric, 7);
+        const prevArr = h30.filter(h => h.metric === metric).filter(h => {
+          const t = new Date(h.time).getTime();
+          return t >= now.getTime() - 14 * 86400000 && t < now.getTime() - 7 * 86400000;
+        }).map(h => Number(h.value)).filter(v => !isNaN(v));
+        const prevAvg = prevArr.length ? prevArr.reduce((s, v) => s + v, 0) / prevArr.length : null;
+        if (recentAvg == null || prevAvg == null) return { recent: recentAvg, delta: null };
+        return { recent: recentAvg, delta: recentAvg - prevAvg };
+      };
+
+      // 30일 추세 + 목표 비교로 "추천 시 우선시할 영양"을 결정
+      const wTrend = healthTrend('weight');
+      const bsTrend = healthTrend('blood_sugar');
+      const naAvg30 = m30.length ? m30.reduce((s, m) => s + (m.total_sodium_mg || 0), 0) / m30.length : null;
+      const sugarAvg30 = m30.length ? m30.reduce((s, m) => s + (m.total_sugar_g || 0), 0) / m30.length : null;
+      const exerciseRecent = healthAvgRecent('exercise_minutes', 7);
+      const strengthRecent = healthAvgRecent('strength_minutes', 7);
+
+      const healthTrendNeeds = {
+        // 체중 증가 추세 또는 목표 초과 → 저칼로리·고섬유 우선
+        lowKcal: !!(wTrend.delta && wTrend.delta > 0.3) || (target.targetWeight && wTrend.recent != null && wTrend.recent > target.targetWeight + 1),
+        highFiber: !!(wTrend.delta && wTrend.delta > 0.3),
+        // 공복혈당 100 이상 또는 상승 추세 또는 평균 당 섭취 과다 → 저당·저GI
+        lowSugar: !!(bsTrend.recent && bsTrend.recent >= 100) || !!(bsTrend.delta && bsTrend.delta > 5) || !!(sugarAvg30 && sugarAvg30 > 20),
+        lowGI: !!(bsTrend.recent && bsTrend.recent >= 100) || !!(bsTrend.delta && bsTrend.delta > 5),
+        // 나트륨 평균 과다 → 저염
+        lowSodium: !!(naAvg30 && naAvg30 > 1000),
+        // 운동 부족(주 150분 미만) 또는 근력 부족 → 고단백
+        highProtein: !!(exerciseRecent != null && exerciseRecent * 7 < 150) || !!(strengthRecent != null && strengthRecent < 20)
+      };
+
+      // 요일·끼니별 최근 14일 먹은 메뉴 (요일 다양성 가중치용)
+      const recentByDayMeal = {};   // 'Mon-dinner' → ['김치찌개', ...]
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      (state.meals || []).filter(m => new Date(m.consumed_at) >= new Date(now.getTime() - 14 * 86400000))
+        .forEach(m => {
+          const d = new Date(m.consumed_at);
+          const key = dayNames[d.getDay()] + '-' + (m.meal_type || '');
+          if (!recentByDayMeal[key]) recentByDayMeal[key] = [];
+          (m.items || []).forEach(it => { if (it.name) recentByDayMeal[key].push(it.name); });
+        });
+
       return {
         avg, needs, recentNames, todayTypes, currentTime,
         expiringItems, currentIngredients, cautionGroups, allergies,
         goal: target.goal || 'general',
         hasHealth: hasHealthData(),
-        hasRichHealth: hasRichHealthData()
+        hasRichHealth: hasRichHealthData(),
+        // 신규 — 30일 건강 추세 + 요일 패턴
+        healthTrendNeeds,
+        recentByDayMeal,
+        dayOfWeek: now.getDay(),
+        currentDayName: dayNames[now.getDay()]
       };
     }
 
@@ -7731,7 +7846,52 @@ JSON 형식:
         if (stars >= 4) { sFeedback += 10; reasons.push(`⭐${stars} 평가`); }
         else if (stars > 0 && stars <= 2) { sFeedback -= 10; }
 
-        const total = blockedByAllergy ? -100 : (sIngredient + sNutrition + sGoal + sExpire + sTime + sDiverse + sFeedback);
+        // 9) 30일 건강 추세 기반 (max 30, hasHealth=false면 personalScale로 약화)
+        let sTrend = 0;
+        const tn = ctx.healthTrendNeeds || {};
+        if (tn.lowKcal && r.nutrition.kcal <= 350) {
+          sTrend += 8;
+          if (ctx.hasHealth) reasons.push('저칼로리 (체중 추세 ↑)');
+        }
+        if (tn.highFiber && r.nutrition.fiber >= 6) {
+          sTrend += 6;
+          if (ctx.hasHealth) reasons.push('고섬유 (체중 관리)');
+        }
+        if (tn.lowSugar && r.nutrition.sugar <= 5) {
+          sTrend += 8;
+          if (ctx.hasHealth) reasons.push('저당 (혈당 추세)');
+        }
+        if (tn.lowGI && r.nutrition.gi != null && r.nutrition.gi <= 55) {
+          sTrend += 5;
+          if (ctx.hasHealth) reasons.push('저GI (혈당 안정)');
+        }
+        if (tn.lowSodium && r.nutrition.sodium <= 400) {
+          sTrend += 6;
+          if (ctx.hasHealth) reasons.push('저염 (나트륨 과다)');
+        }
+        if (tn.highProtein && r.nutrition.p >= 25) {
+          sTrend += 8;
+          if (ctx.hasHealth) reasons.push('고단백 (운동량 보강)');
+        }
+        sTrend = Math.min(30, sTrend) * personalScale;
+
+        // 10) 요일·끼니별 다양성 (max 15) — 같은 요일·끼니에 최근 14일 안 먹은 메뉴
+        let sDayDiverse = 0;
+        const dayMealKey = (ctx.currentDayName || '') + '-' + (ctx.currentTime || '');
+        const recentDayMenu = (ctx.recentByDayMeal && ctx.recentByDayMeal[dayMealKey]) || [];
+        if (recentDayMenu.length > 0) {
+          const sameDayRepeat = recentDayMenu.includes(r.title)
+            || (r.ingredients || []).some(ing => recentDayMenu.includes(ing));
+          if (!sameDayRepeat) {
+            sDayDiverse = 12;
+            reasons.push('이 요일·끼니에 신선');
+          } else {
+            sDayDiverse = -3;
+          }
+        }
+
+        const total = blockedByAllergy ? -100
+          : (sIngredient + sNutrition + sGoal + sExpire + sTime + sDiverse + sFeedback + sTrend + sDayDiverse);
 
         return {
           ...r,

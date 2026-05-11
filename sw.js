@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v32: Speed optimization — smaller image upload (1024px·q0.75) + default model gemini-2.5-flash-lite (1~3s)
-const CACHE_NAME = 'smartcon-v32-speed';
+// v33: Smarter meal plan — 30-day health trend + day-of-week pattern + 3 recommendations per slot
+const CACHE_NAME = 'smartcon-v33-smart-plan';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
