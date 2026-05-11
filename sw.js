@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v33: Smarter meal plan — 30-day health trend + day-of-week pattern + 3 recommendations per slot
-const CACHE_NAME = 'smartcon-v33-smart-plan';
+// v34: Voice analysis robustness — Gemini retry + model fallback + local DB graceful fallback
+const CACHE_NAME = 'smartcon-v34-voice-fix';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
