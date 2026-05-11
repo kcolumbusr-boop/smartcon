@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v30: Update notification banner + meal plan + i18n + multi-image food/inventory + recipe search + categorized shopping
-const CACHE_NAME = 'smartcon-v30-update-aware';
+// v31: Fix food analysis regression — fetch(dataURL) CSP block → direct base64→File conversion
+const CACHE_NAME = 'smartcon-v31-food-analysis-fix';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
