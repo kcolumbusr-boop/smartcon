@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v31: Fix food analysis regression — fetch(dataURL) CSP block → direct base64→File conversion
-const CACHE_NAME = 'smartcon-v31-food-analysis-fix';
+// v32: Speed optimization — smaller image upload (1024px·q0.75) + default model gemini-2.5-flash-lite (1~3s)
+const CACHE_NAME = 'smartcon-v32-speed';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
