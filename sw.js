@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v39: Shopping vendor search redirect — Coupang/Kurly/SSG/Oasis search URL (no API key required)
-const CACHE_NAME = 'smartcon-v39-vendor-search';
+// v40: Coupang Partners disclosure — fixed footer on all screens (compliance preparation)
+const CACHE_NAME = 'smartcon-v40-partners-disclosure';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
