@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v38: Inventory + Shopping item editing — tap to edit name·qty·location·expiry·price
-const CACHE_NAME = 'smartcon-v38-item-edit';
+// v39: Shopping vendor search redirect — Coupang/Kurly/SSG/Oasis search URL (no API key required)
+const CACHE_NAME = 'smartcon-v39-vendor-search';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {

@@ -7472,23 +7472,101 @@ expiry_date는 YYYY-MM-DD 형식 + 반드시 ${today} 또는 이후 날짜.
         countsEl.textContent = state.shopping.length > 0 ? `(${pending} 남음 · ${done} 완료)` : '';
       }
 
-      // Price compare
-      const vendors = [
-        { name: '쿠팡', emoji: '🛍', mult: 1.0, note: '로켓배송' },
-        { name: '마켓컬리', emoji: '🥬', mult: 1.1, note: '새벽배송' },
-        { name: 'SSG', emoji: '🏪', mult: 0.98, note: '당일배송' },
-        { name: '오아시스', emoji: '🌿', mult: 1.05, note: '유기농' }
-      ];
+      // Price compare — 클릭 시 벤더 검색 모달
+      const vendors = SHOP_VENDORS;
       document.getElementById('priceCompare').innerHTML = vendors.map(v => `
-        <div class="list-item" onclick="showToast('${v.name} 연동은 파트너스 API 필요')">
+        <div class="list-item" onclick="openShopVendorSearch(${escapeJsAttr(v.id)})" style="cursor:pointer;">
           <div class="list-icon">${v.emoji}</div>
           <div class="list-main">
-            <div class="list-title">${v.name}</div>
-            <div class="list-sub">${v.note}</div>
+            <div class="list-title">${escapeHtml(v.name)}</div>
+            <div class="list-sub">${escapeHtml(v.note)} · 탭하여 검색</div>
           </div>
-          <div class="list-right" style="font-weight:700;">₩ ${Math.round(total * v.mult).toLocaleString()}</div>
+          <div class="list-right" style="font-weight:700;">₩ ${Math.round(total * v.mult).toLocaleString()} <span style="font-size:11px; opacity:.7;">(추정)</span></div>
         </div>
       `).join('');
+    }
+
+    // ─── 벤더 검색 URL 매핑 ───
+    // 각 사이트 공식 검색 URL 패턴. 파트너스 API 없이도 외부 브라우저에서 검색 결과 페이지로 이동
+    const SHOP_VENDORS = [
+      { id: 'coupang', name: '쿠팡', emoji: '🛍', mult: 1.0, note: '로켓배송', url: (q) => `https://www.coupang.com/np/search?q=${encodeURIComponent(q)}&channel=user` },
+      { id: 'kurly', name: '마켓컬리', emoji: '🥬', mult: 1.1, note: '새벽배송', url: (q) => `https://www.kurly.com/search?sword=${encodeURIComponent(q)}` },
+      { id: 'ssg', name: 'SSG', emoji: '🏪', mult: 0.98, note: '당일배송', url: (q) => `https://www.ssg.com/search.ssg?target=all&query=${encodeURIComponent(q)}` },
+      { id: 'oasis', name: '오아시스', emoji: '🌿', mult: 1.05, note: '유기농', url: (q) => `https://www.oasis.co.kr/product/search/${encodeURIComponent(q)}` }
+    ];
+
+    function openShopVendorSearch(vendorId) {
+      const vendor = SHOP_VENDORS.find(v => v.id === vendorId);
+      if (!vendor) return;
+      const pending = (state.shopping || []).filter(s => !s.done);
+      const m = document.getElementById('modalContent');
+
+      if (pending.length === 0) {
+        m.innerHTML = `
+          <div class="modal-handle"></div>
+          <div class="modal-title">${vendor.emoji} ${escapeHtml(vendor.name)} 검색</div>
+          <p style="color:var(--muted); font-size:13px; margin-bottom:12px;">아직 구매할 항목이 없어요. 장보기에 먼저 추가해주세요.</p>
+          <button type="button" class="btn btn-primary" onclick="closeModal()">확인</button>
+        `;
+        openModal();
+        return;
+      }
+
+      const list = pending.map(s => `
+        <div style="display:flex; gap:8px; align-items:center; padding:8px 10px; background:rgba(0,0,0,.22); border-radius:8px; margin-bottom:6px;">
+          <span style="font-size:18px;">${FOOD_EMOJI[s.name]||'📦'}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:13px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(s.name)}</div>
+            <div style="font-size:11px; color:var(--muted);">${escapeHtml(s.qty || '')}</div>
+          </div>
+          <button type="button" class="btn btn-primary btn-small" style="flex-shrink:0;" onclick="searchOnVendor(${escapeJsAttr(vendor.id)}, ${escapeJsAttr(s.name)})">
+            🔎 검색
+          </button>
+        </div>
+      `).join('');
+
+      m.innerHTML = `
+        <div class="modal-handle"></div>
+        <div class="modal-title">${vendor.emoji} ${escapeHtml(vendor.name)} 검색</div>
+        <p style="color:var(--muted); font-size:12px; margin-bottom:10px; line-height:1.55;">
+          미완료 장보기 <b>${pending.length}개</b>. 각 항목을 ${escapeHtml(vendor.name)}에서 검색해 카트에 담을 수 있습니다.
+        </p>
+        <div style="max-height:50vh; overflow-y:auto; margin:0 -4px; padding:0 4px;">
+          ${list}
+        </div>
+        <div style="height:10px"></div>
+        <button type="button" class="btn btn-ghost" onclick="copyShoppingList()">📋 전체 항목 클립보드 복사</button>
+        <div style="height:6px"></div>
+        <button type="button" class="btn btn-ghost btn-small" onclick="closeModal()">닫기</button>
+
+        <div style="margin-top:12px; padding:8px 10px; background:rgba(0,0,0,.2); border-radius:8px; font-size:10.5px; color:var(--muted); line-height:1.55;">
+          🔗 새 탭에서 ${escapeHtml(vendor.name)} 검색 페이지가 열립니다. 본인 계정으로 로그인 후 카트에 담으세요.
+        </div>
+      `;
+      openModal();
+    }
+
+    function searchOnVendor(vendorId, query) {
+      const vendor = SHOP_VENDORS.find(v => v.id === vendorId);
+      if (!vendor || !query) return;
+      const url = vendor.url(String(query).trim());
+      window.open(url, '_blank', 'noopener,noreferrer');
+      // 사용자가 카트에 담은 후 돌아오면 이 항목을 완료 처리하기 좋게 토스트 안내
+      showToast(`🔎 ${vendor.name}에서 "${query}" 검색 — 카트 담은 후 ✓ 체크`);
+    }
+
+    function copyShoppingList() {
+      const pending = (state.shopping || []).filter(s => !s.done);
+      if (pending.length === 0) { showToast('미완료 항목이 없어요'); return; }
+      const text = pending.map(s => `${s.name}${s.qty ? ' ' + s.qty : ''}`).join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+          () => showToast(`📋 ${pending.length}개 항목 복사됨`),
+          () => showToast('복사 실패 — 직접 복사하세요')
+        );
+      } else {
+        showToast('이 브라우저는 클립보드 미지원');
+      }
     }
 
     function toggleShop(id) {
@@ -7525,7 +7603,19 @@ expiry_date는 YYYY-MM-DD 형식 + 반드시 ${today} 또는 이후 날짜.
 
         <div style="height:14px"></div>
         <button type="button" class="btn btn-primary" onclick="saveShoppingEdit(${escapeJsAttr(id)})">💾 저장</button>
-        <div style="height:8px"></div>
+
+        <div style="margin-top:14px; padding:10px; background:rgba(0,0,0,.2); border-radius:10px;">
+          <div style="font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.04em; margin-bottom:6px;">🛒 쇼핑몰에서 검색</div>
+          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
+            ${SHOP_VENDORS.map(v => `
+              <button type="button" class="btn btn-ghost btn-small" onclick="searchOnVendor(${escapeJsAttr(v.id)}, ${escapeJsAttr(item.name)})" style="font-size:12px;">
+                ${v.emoji} ${escapeHtml(v.name)}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
         <button type="button" class="btn btn-danger" onclick="confirmDeleteShopping(${escapeJsAttr(id)})">🗑 삭제</button>
         <div style="height:6px"></div>
         <button type="button" class="btn btn-ghost btn-small" onclick="closeModal()">취소</button>
