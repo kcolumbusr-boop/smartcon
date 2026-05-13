@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v37: Scan result inline editing — name·qty·location·expiry editable + add·remove items before save
-const CACHE_NAME = 'smartcon-v37-scan-edit';
+// v38: Inventory + Shopping item editing — tap to edit name·qty·location·expiry·price
+const CACHE_NAME = 'smartcon-v38-item-edit';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {

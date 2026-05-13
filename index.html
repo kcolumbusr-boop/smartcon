@@ -6699,18 +6699,87 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       const item = state.inventory.find(i => i.id === id);
       if (!item) return;
       const m = document.getElementById('modalContent');
+      const days = item.expiry ? daysUntil(item.expiry) : null;
+      const expStatus = days === null ? '' :
+        days < 0 ? `<span style="color:#f87171;">만료 D+${Math.abs(days)}</span>` :
+        days === 0 ? `<span style="color:#fbbf24;">오늘 만료</span>` :
+        days <= 3 ? `<span style="color:#fbbf24;">D-${days}</span>` :
+        `<span style="color:#6ee7b7;">D-${days}</span>`;
+
       m.innerHTML = `
         <div class="modal-handle"></div>
-        <div class="modal-title">${FOOD_EMOJI[item.name]||'📦'} ${escapeHtml(item.name)}</div>
-        <div style="color:var(--muted); font-size:13px; margin-bottom:12px;">${escapeHtml(item.qty)} · ${escapeHtml(locLabel(item.location))} · ${item.expiry ? `유통기한 ${escapeHtml(item.expiry)}` : '기한 없음'}</div>
+        <div class="modal-title">${FOOD_EMOJI[item.name]||'📦'} 항목 편집</div>
+        <p style="color:var(--muted); font-size:11.5px; margin-bottom:12px;">이름·수량·위치·유통기한을 자유롭게 수정한 후 저장하세요.</p>
+
+        <label for="editInvName" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px;">이름</label>
+        <input type="text" id="editInvName" value="${escapeHtml(item.name || '')}" list="foodListEdit" />
+        <datalist id="foodListEdit">
+          ${Object.keys(FOOD_DB).map(n => `<option value="${escapeHtml(n)}">`).join('')}
+        </datalist>
+
+        <label for="editInvQty" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; margin-top:8px;">수량</label>
+        <input type="text" id="editInvQty" value="${escapeHtml(item.qty || '')}" placeholder="1개 · 500g · 1팩 · 반통" />
+
+        <label for="editInvLoc" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; margin-top:8px;">보관 위치</label>
+        <select id="editInvLoc">
+          <option value="fridge" ${item.location==='fridge'?'selected':''}>🧊 냉장실</option>
+          <option value="freezer" ${item.location==='freezer'?'selected':''}>❄️ 냉동실</option>
+          <option value="veg_drawer" ${item.location==='veg_drawer'?'selected':''}>🥬 야채칸</option>
+          <option value="pantry" ${item.location==='pantry'?'selected':''}>🪣 팬트리</option>
+          <option value="spice" ${item.location==='spice'?'selected':''}>🧂 양념선반</option>
+          <option value="counter" ${item.location==='counter'?'selected':''}>🔥 실온</option>
+        </select>
+
+        <label for="editInvExpiry" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; margin-top:8px;">
+          유통기한 ${expStatus ? '· ' + expStatus : ''}
+        </label>
+        <input type="date" id="editInvExpiry" value="${escapeHtml(item.expiry || '')}" />
+
+        <label for="editInvBrand" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; margin-top:8px;">브랜드 <span style="opacity:.6;">(선택)</span></label>
+        <input type="text" id="editInvBrand" value="${escapeHtml(item.brand || '')}" placeholder="예: 서울우유, 풀무원" />
+
+        <div style="height:14px"></div>
+        <button type="button" class="btn btn-primary" onclick="saveInventoryEdit(${escapeJsAttr(id)})">💾 저장</button>
+        <div style="height:8px"></div>
         <div class="btn-row">
-          <button class="btn btn-primary" onclick="consumeInventory(${escapeJsAttr(id)})">✅ 사용함</button>
-          <button class="btn btn-ghost" onclick="addToShoppingFromInv(${escapeJsAttr(item.name)})">🛒 장보기에 추가</button>
+          <button type="button" class="btn btn-ghost" onclick="consumeInventory(${escapeJsAttr(id)})">✅ 사용 완료</button>
+          <button type="button" class="btn btn-ghost" onclick="addToShoppingFromInv(${escapeJsAttr(item.name)})">🛒 장보기에 추가</button>
         </div>
         <div style="height:8px"></div>
-        <button class="btn btn-danger" onclick="deleteInventory(${escapeJsAttr(id)})">삭제</button>
+        <button type="button" class="btn btn-danger" onclick="confirmDeleteInventory(${escapeJsAttr(id)})">🗑 삭제</button>
+        <div style="height:6px"></div>
+        <button type="button" class="btn btn-ghost btn-small" onclick="closeModal()">취소</button>
       `;
       openModal();
+    }
+
+    function saveInventoryEdit(id) {
+      const item = state.inventory.find(i => i.id === id);
+      if (!item) return;
+      const name = document.getElementById('editInvName').value.trim();
+      const qty = document.getElementById('editInvQty').value.trim();
+      const loc = document.getElementById('editInvLoc').value;
+      const exp = document.getElementById('editInvExpiry').value;
+      const brand = document.getElementById('editInvBrand').value.trim();
+      if (!name) { showToast('이름은 비울 수 없어요'); return; }
+      item.name = name;
+      item.qty = qty || '1';
+      item.location = loc || 'fridge';
+      // 유통기한 — 비우면 null, 값 있으면 sanitize (과거 날짜는 음식별 기본값으로)
+      item.expiry = exp ? sanitizeExpiryDate(exp, name) : null;
+      item.brand = brand || undefined;
+      save();
+      closeModal();
+      renderInventory();
+      renderHome();
+      showToast('✓ 수정 완료');
+    }
+
+    function confirmDeleteInventory(id) {
+      const item = state.inventory.find(i => i.id === id);
+      if (!item) return;
+      if (!confirm(`"${item.name}"을(를) 재고에서 삭제하시겠어요? 되돌릴 수 없습니다.`)) return;
+      deleteInventory(id);
     }
     function consumeInventory(id) {
       const i = state.inventory.find(x=>x.id===id);
@@ -7382,9 +7451,11 @@ expiry_date는 YYYY-MM-DD 형식 + 반드시 ${today} 또는 이후 날짜.
           ` + items.map(s => `
             <li class="${s.done ? 'done' : ''}">
               <div class="check ${s.done ? 'done' : ''}" onclick="toggleShop(${escapeJsAttr(s.id)})">${s.done ? '✓' : ''}</div>
-              <div class="check-text">${FOOD_EMOJI[s.name]||'📦'} ${escapeHtml(s.name)}</div>
-              <div class="check-qty">${escapeHtml(s.qty || '')}</div>
-              <div style="color:var(--muted); font-size:11px; margin-left:8px;">${s.price ? '₩'+s.price.toLocaleString() : ''}</div>
+              <div class="check-text" onclick="editShoppingItem(${escapeJsAttr(s.id)})" style="cursor:pointer;">${FOOD_EMOJI[s.name]||'📦'} ${escapeHtml(s.name)}</div>
+              <div class="check-qty" onclick="editShoppingItem(${escapeJsAttr(s.id)})" style="cursor:pointer;">${escapeHtml(s.qty || '')}</div>
+              <div onclick="editShoppingItem(${escapeJsAttr(s.id)})" style="color:var(--muted); font-size:11px; margin-left:8px; cursor:pointer;">${s.price ? '₩'+s.price.toLocaleString() : ''}</div>
+              <button type="button" onclick="editShoppingItem(${escapeJsAttr(s.id)})" aria-label="항목 편집"
+                style="background:none; border:none; color:var(--muted); padding:4px 8px; cursor:pointer; font-size:14px; flex-shrink:0;">✏️</button>
             </li>
           `).join(''));
         });
@@ -7423,6 +7494,75 @@ expiry_date는 YYYY-MM-DD 형식 + 반드시 ${today} 또는 이후 날짜.
     function toggleShop(id) {
       const s = state.shopping.find(x=>x.id===id);
       if (s) { s.done = !s.done; save(); renderShopping(); renderHome(); }
+    }
+
+    // ─── 장보기 항목 편집 ───
+    function editShoppingItem(id) {
+      const item = state.shopping.find(x => x.id === id);
+      if (!item) return;
+      const m = document.getElementById('modalContent');
+      m.innerHTML = `
+        <div class="modal-handle"></div>
+        <div class="modal-title">${FOOD_EMOJI[item.name]||'🛒'} 장보기 항목 편집</div>
+        <p style="color:var(--muted); font-size:11.5px; margin-bottom:12px;">이름·수량·가격을 자유롭게 수정한 후 저장하세요.</p>
+
+        <label for="editShopName" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px;">이름</label>
+        <input type="text" id="editShopName" value="${escapeHtml(item.name || '')}" list="foodListShopEdit" />
+        <datalist id="foodListShopEdit">
+          ${Object.keys(FOOD_DB).map(n => `<option value="${escapeHtml(n)}">`).join('')}
+        </datalist>
+
+        <label for="editShopQty" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; margin-top:8px;">수량</label>
+        <input type="text" id="editShopQty" value="${escapeHtml(item.qty || '')}" placeholder="1개 · 500g · 1팩" />
+
+        <label for="editShopPrice" style="display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; margin-top:8px;">가격 (원) <span style="opacity:.6;">(선택)</span></label>
+        <input type="number" id="editShopPrice" value="${item.price != null ? item.price : ''}" min="0" step="100" inputmode="numeric" placeholder="3000" />
+
+        <div style="display:flex; gap:8px; align-items:center; margin-top:14px; padding:10px; background:rgba(0,0,0,.2); border-radius:8px;">
+          <input type="checkbox" id="editShopDone" ${item.done ? 'checked' : ''} style="width:auto; margin:0; transform:scale(1.2);" />
+          <label for="editShopDone" style="font-size:13px; color:var(--text); margin:0; cursor:pointer; flex:1;">구매 완료로 표시</label>
+        </div>
+
+        <div style="height:14px"></div>
+        <button type="button" class="btn btn-primary" onclick="saveShoppingEdit(${escapeJsAttr(id)})">💾 저장</button>
+        <div style="height:8px"></div>
+        <button type="button" class="btn btn-danger" onclick="confirmDeleteShopping(${escapeJsAttr(id)})">🗑 삭제</button>
+        <div style="height:6px"></div>
+        <button type="button" class="btn btn-ghost btn-small" onclick="closeModal()">취소</button>
+      `;
+      openModal();
+    }
+
+    function saveShoppingEdit(id) {
+      const item = state.shopping.find(x => x.id === id);
+      if (!item) return;
+      const name = document.getElementById('editShopName').value.trim();
+      const qty = document.getElementById('editShopQty').value.trim();
+      const priceRaw = document.getElementById('editShopPrice').value.trim();
+      const done = document.getElementById('editShopDone').checked;
+      if (!name) { showToast('이름은 비울 수 없어요'); return; }
+      item.name = name;
+      item.qty = qty || '1';
+      const priceNum = Number(priceRaw);
+      item.price = (priceRaw === '' || isNaN(priceNum) || priceNum < 0) ? null : Math.round(priceNum);
+      item.done = !!done;
+      save();
+      closeModal();
+      renderShopping();
+      renderHome();
+      showToast('✓ 수정 완료');
+    }
+
+    function confirmDeleteShopping(id) {
+      const item = state.shopping.find(x => x.id === id);
+      if (!item) return;
+      if (!confirm(`"${item.name}"을(를) 장보기에서 삭제하시겠어요?`)) return;
+      state.shopping = state.shopping.filter(x => x.id !== id);
+      save();
+      closeModal();
+      renderShopping();
+      renderHome();
+      showToast('🗑 삭제됨');
     }
 
     function openShoppingAdd() {
