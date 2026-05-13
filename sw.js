@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v40: Coupang Partners disclosure — fixed footer on all screens (compliance preparation)
-const CACHE_NAME = 'smartcon-v40-partners-disclosure';
+// v41: Coupang Partners Cloudflare Worker integration — tracking shortenUrl for shopping search
+const CACHE_NAME = 'smartcon-v41-partners-worker';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {

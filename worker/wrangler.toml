@@ -1,0 +1,13 @@
+# Cloudflare Workers 배포 설정
+# 사용법: docs/CLOUDFLARE_WORKERS_SETUP.md 참조
+
+name = "smartcon-coupang-affiliate"
+main = "coupang-affiliate.js"
+compatibility_date = "2024-09-01"
+
+# ⚠️ 환경변수는 wrangler secret 명령으로 설정 (이 파일에 직접 쓰지 마세요)
+# wrangler secret put COUPANG_ACCESS_KEY
+# wrangler secret put COUPANG_SECRET_KEY
+
+# 무료 티어 한도: 일 100,000 요청 · CPU 시간 10ms/요청
+# 우리 사용량 예상: 사용자당 일 20회 검색 가정 → 5,000명 / 일 = 100,000 (한도 안)

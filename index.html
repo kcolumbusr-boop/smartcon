@@ -19,7 +19,7 @@
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob:;
     media-src 'self' blob:;
-    connect-src 'self' https://generativelanguage.googleapis.com;
+    connect-src 'self' https://generativelanguage.googleapis.com https://*.workers.dev;
     font-src 'self' data:;
     object-src 'none';
     base-uri 'self';
@@ -1245,6 +1245,22 @@
       </div>
     </div>
 
+    <!-- 쿠팡 파트너스 워커 (선택) — 검색을 추적 단축 URL로 전환하여 수익 공유 활성 -->
+    <div class="card">
+      <div class="card-title">🔗 쿠팡 파트너스 워커 (선택)</div>
+      <div class="list-item" onclick="openCoupangWorkerInput()" style="cursor:pointer;">
+        <div class="list-icon">🛍</div>
+        <div class="list-main">
+          <div class="list-title">파트너스 추적 링크</div>
+          <div class="list-sub" id="coupangWorkerStatus">● 미설정 (일반 검색 URL 사용)</div>
+        </div>
+        <div style="font-size:20px; color:var(--muted);">›</div>
+      </div>
+      <div style="margin-top:8px; padding:8px 10px; background:rgba(0,0,0,.2); border-radius:8px; font-size:10.5px; color:var(--muted); line-height:1.6;">
+        💡 본인 발급 쿠팡 파트너스 키를 Cloudflare Worker에 안전 보관 후 워커 URL만 등록하면, 장보기 → 쿠팡 검색이 추적용 단축 URL(<code>link.coupang.com/...</code>)로 열립니다. 설정 가이드는 <code>docs/CLOUDFLARE_WORKERS_SETUP.md</code>.
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">연동 & 설정</div>
       <div class="list-item">
@@ -1283,9 +1299,9 @@
       <div class="list-item" style="padding:8px 0;">
         <div class="list-main">
           <div class="list-title">현재 버전</div>
-          <div class="list-sub" id="appVersionSub">v29 · 2026-04-22 · 다음 식사 AI 추천</div>
+          <div class="list-sub" id="appVersionSub">v41 · 2026-05-13 · 쿠팡 파트너스 워커 연동</div>
         </div>
-        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v29</span>
+        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v41</span>
       </div>
       <div style="height:8px"></div>
       <button class="btn btn-primary" onclick="forceAppUpdate()" style="background:linear-gradient(135deg,#10b981,#06b6d4);">
@@ -3846,7 +3862,7 @@
       health: [],
       recipes: [],
       favorites: [],
-      settings: { notifications: false, apiKey: '', model: 'gemini-2.5-flash-lite', language: 'ko' }
+      settings: { notifications: false, apiKey: '', model: 'gemini-2.5-flash-lite', language: 'ko', coupangWorkerUrl: '' }
     };
 
     // ============== GEMINI VISION API ==============
@@ -7565,13 +7581,109 @@ expiry_date는 YYYY-MM-DD 형식 + 반드시 ${today} 또는 이후 날짜.
       openModal();
     }
 
-    function searchOnVendor(vendorId, query) {
+    async function searchOnVendor(vendorId, query) {
       const vendor = SHOP_VENDORS.find(v => v.id === vendorId);
       if (!vendor || !query) return;
-      const url = vendor.url(String(query).trim());
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const q = String(query).trim();
+      const directUrl = vendor.url(q);
+
+      // 쿠팡 + 워커 URL 설정 시: 파트너스 추적 단축 URL 시도, 실패 시 직접 검색 URL 폴백
+      const workerUrl = state.settings && state.settings.coupangWorkerUrl;
+      if (vendorId === 'coupang' && workerUrl && /^https:\/\//.test(workerUrl)) {
+        // 팝업 차단 우회: 사용자 제스처 시점에 미리 빈 탭을 열고 나중에 location 변경
+        const newTab = window.open('about:blank', '_blank', 'noopener,noreferrer');
+        try {
+          const res = await fetch(workerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: q })
+          });
+          const json = await res.json();
+          const shortUrl = json && json.ok && json.data && json.data.data && json.data.data[0] && json.data.data[0].shortenUrl;
+          if (shortUrl) {
+            if (newTab) newTab.location = shortUrl; else window.open(shortUrl, '_blank', 'noopener,noreferrer');
+            showToast(`🔗 ${vendor.name} 파트너스 추적 링크로 검색`);
+            return;
+          }
+          throw new Error((json && json.error) ? json.error : '워커 응답 형식 오류');
+        } catch (e) {
+          console.warn('[coupang-worker] fallback to direct search:', e);
+          if (newTab) newTab.location = directUrl; else window.open(directUrl, '_blank', 'noopener,noreferrer');
+          showToast(`🔎 ${vendor.name}에서 "${q}" 검색 (직접 URL · 워커 실패)`);
+          return;
+        }
+      }
+
+      // 기본: 직접 검색 URL
+      window.open(directUrl, '_blank', 'noopener,noreferrer');
       // 사용자가 카트에 담은 후 돌아오면 이 항목을 완료 처리하기 좋게 토스트 안내
       showToast(`🔎 ${vendor.name}에서 "${query}" 검색 — 카트 담은 후 ✓ 체크`);
+    }
+
+    // ─── 쿠팡 파트너스 워커 URL 설정 ───
+    function openCoupangWorkerInput() {
+      const m = document.getElementById('modalContent');
+      const cur = (state.settings && state.settings.coupangWorkerUrl) || '';
+      m.innerHTML = `
+        <div class="modal-handle"></div>
+        <div class="modal-title">🔗 쿠팡 파트너스 워커 URL</div>
+        ${cur ? `<div style="background:rgba(16,185,129,.15); padding:10px; border-radius:10px; font-size:12px; color:#6ee7b7; margin-bottom:12px; word-break:break-all;">
+          ✓ 현재 등록됨:<br><code>${escapeHtml(cur)}</code>
+        </div>` : ''}
+        <p style="color:var(--muted); font-size:12.5px; margin-bottom:14px; line-height:1.6;">
+          본인 발급 쿠팡 파트너스 access/secret 키를 보관 중인 Cloudflare Worker 주소를 등록합니다.
+          설정 후 장보기 → 쿠팡 검색이 추적 단축 URL(<code>link.coupang.com/...</code>)로 열립니다.
+        </p>
+        <label for="coupangWorkerIn">워커 URL (https://...workers.dev)</label>
+        <input type="url" id="coupangWorkerIn" placeholder="https://smartcon-coupang-affiliate.your-name.workers.dev" value="${escapeHtml(cur)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-family:monospace; font-size:12px;" />
+        <div style="margin:12px 0; padding:10px; background:rgba(59,130,246,.08); border-radius:8px; font-size:11px; color:#93c5fd; line-height:1.55;">
+          📘 워커가 아직 없으면 <code>docs/CLOUDFLARE_WORKERS_SETUP.md</code>의 단계를 따라 10분 안에 무료로 배포할 수 있습니다.
+          본인 파트너스 키만 사용되며 SmartCon은 트래픽 중계만 합니다.
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="closeModal()">닫기</button>
+          <button class="btn btn-primary" onclick="saveCoupangWorkerUrl()">저장</button>
+        </div>
+        ${cur ? '<div style="height:8px"></div><button class="btn btn-danger" onclick="clearCoupangWorkerUrl()">URL 삭제 (일반 검색으로 전환)</button>' : ''}
+      `;
+      openModal();
+    }
+
+    function saveCoupangWorkerUrl() {
+      const el = document.getElementById('coupangWorkerIn');
+      if (!el) { showToast('입력창을 찾지 못함'); return; }
+      const url = (el.value || '').trim();
+      if (url && !/^https:\/\/.+/i.test(url)) {
+        showToast('https:// 로 시작하는 유효한 URL이어야 합니다');
+        return;
+      }
+      if (!state.settings) state.settings = {};
+      state.settings.coupangWorkerUrl = url;
+      save();
+      closeModal();
+      updateCoupangWorkerStatus();
+      showToast(url ? '✓ 쿠팡 파트너스 워커 URL 저장됨' : 'URL 삭제됨 (일반 검색으로 전환)');
+    }
+
+    function clearCoupangWorkerUrl() {
+      if (!state.settings) state.settings = {};
+      state.settings.coupangWorkerUrl = '';
+      save();
+      closeModal();
+      updateCoupangWorkerStatus();
+      showToast('URL 삭제됨 (일반 검색으로 전환)');
+    }
+
+    function updateCoupangWorkerStatus() {
+      const el = document.getElementById('coupangWorkerStatus');
+      if (!el) return;
+      const url = (state.settings && state.settings.coupangWorkerUrl) || '';
+      if (url) {
+        const masked = url.length > 40 ? url.substring(0, 30) + '...' + url.substring(url.length - 8) : url;
+        el.innerHTML = `<span style="color:#6ee7b7;">● 연결됨</span> · <code style="font-size:10px;">${escapeHtml(masked)}</code>`;
+      } else {
+        el.textContent = '● 미설정 (일반 검색 URL 사용)';
+      }
     }
 
     function copyShoppingList() {
@@ -9282,6 +9394,8 @@ JSON 형식:
           ks.innerHTML = '<span style="color:#f87171;">● 미연결 (모의 모드)</span>';
         }
       }
+      // 쿠팡 파트너스 워커 URL 상태
+      updateCoupangWorkerStatus();
       // 건강 목표 입력값 동기화 (체중·공복혈당)
       renderGoalInputs();
       // 언어 토글 활성 표시
@@ -10403,7 +10517,7 @@ JSON 형식:
         state = {
           profile: null, meals: [], inventory: [], shopping: [],
           health: [], recipes: [], favorites: [],
-          settings: { notifications: false, apiKey: '', model: 'gemini-2.5-flash-lite', language: 'ko' }
+          settings: { notifications: false, apiKey: '', model: 'gemini-2.5-flash-lite', language: 'ko', coupangWorkerUrl: '' }
         };
       } catch(e) { console.error(e); }
       closeModal();
