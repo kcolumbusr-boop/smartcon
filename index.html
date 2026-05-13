@@ -6923,30 +6923,11 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
         // 메모리 정리 — 분석 끝났으니 사진 데이터 즉시 제거 (영구 저장 X 정책 준수)
         clearScanImages();
 
+        // 각 항목에 'selected' 플래그 추가 (이전엔 모달 DOM의 checkbox로 관리, 이젠 데이터에서)
+        detected.forEach(d => { if (d.selected === undefined) d.selected = true; });
         window.__pendingScanItems = detected;
-        const safeEscape = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-        document.getElementById('modalContent').innerHTML = `
-          <div class="modal-handle"></div>
-          <div class="modal-title">✨ ${detected.length}개 품목 감지 ${hasKey ? '(Gemini AI · 통합 분석)' : '(모의)'}</div>
-          <p style="color:var(--muted); font-size:12px; margin-bottom:12px;">체크된 항목만 저장됩니다. 수정은 저장 후 재고 탭에서.</p>
-          <div style="max-height:50vh; overflow-y:auto; margin:0 -4px; padding:0 4px;">
-            ${detected.map((d,idx) => `
-              <div class="list-item">
-                <div class="list-icon">${FOOD_EMOJI[d.name]||'📦'}</div>
-                <div class="list-main">
-                  <div class="list-title">${safeEscape(d.name)} ${d.brand ? `<span style="font-size:11px; color:var(--muted);">· ${safeEscape(d.brand)}</span>` : ''} <span style="font-size:11px; color:var(--muted);">(${Math.round(d.confidence*100)}%)</span></div>
-                  <div class="list-sub">${safeEscape(d.qty)} · ${locLabel(d.location)} · 유통기한 ${safeEscape(d.expiry) || '미정'}</div>
-                </div>
-                <input type="checkbox" id="scan${idx}" checked style="width:auto; margin:0; transform:scale(1.3);" />
-              </div>
-            `).join('')}
-          </div>
-          <div style="height:12px"></div>
-          <button class="btn btn-primary" onclick="saveScannedItemsFromState()">✅ 선택한 품목 저장</button>
-          <div style="height:6px"></div>
-          <button class="btn btn-ghost" onclick="closeModal()">취소</button>
-        `;
+        window.__pendingScanIsAI = hasKey;
+        renderScanResultModal();
       } catch (err) {
         console.error('[Inventory scan failed]', err);
         document.getElementById('modalContent').innerHTML = `
@@ -7213,32 +7194,139 @@ expiry_date는 YYYY-MM-DD 형식 + 반드시 ${today} 또는 이후 날짜.
       });
     }
 
+    // ─── 스캔 결과 인라인 편집 모달 ───
+    const SCAN_LOCATIONS = [
+      { value: 'fridge', label: '🧊 냉장' },
+      { value: 'freezer', label: '❄️ 냉동' },
+      { value: 'veg_drawer', label: '🥬 야채칸' },
+      { value: 'pantry', label: '🪣 팬트리' },
+      { value: 'spice', label: '🧂 양념' },
+      { value: 'counter', label: '🔥 실온' }
+    ];
+
+    function renderScanResultModal() {
+      const items = window.__pendingScanItems || [];
+      const isAI = !!window.__pendingScanIsAI;
+      const selectedCount = items.filter(d => d.selected).length;
+
+      const rowsHtml = items.length === 0 ? `
+        <div class="empty" style="padding:16px;"><span class="icon">📦</span><div class="text">감지된 품목이 없어요</div></div>
+      ` : items.map((d, idx) => `
+        <div data-scan-idx="${idx}" style="background:rgba(0,0,0,.22); border:1px solid ${d.selected ? 'rgba(16,185,129,.25)' : 'rgba(255,255,255,.06)'}; border-radius:12px; padding:10px; margin-bottom:8px;">
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+            <input type="checkbox" ${d.selected ? 'checked' : ''}
+              onchange="updateScanItem(${idx}, 'selected', this.checked)"
+              aria-label="저장 선택"
+              style="width:auto; margin:0; transform:scale(1.25); flex-shrink:0;" />
+            <span style="font-size:22px; flex-shrink:0;">${FOOD_EMOJI[d.name]||'📦'}</span>
+            <span style="font-size:10.5px; color:var(--muted); flex:1; text-align:right;">${isAI ? `신뢰도 ${Math.round((d.confidence||0)*100)}%` : '모의'}</span>
+            <button type="button" onclick="removeScanItem(${idx})" aria-label="이 항목 제거"
+              style="background:rgba(239,68,68,.15); border:none; color:#fca5a5; width:28px; height:28px; border-radius:6px; font-size:14px; cursor:pointer; flex-shrink:0;">×</button>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+            <label style="display:block;">
+              <span style="display:block; font-size:10px; color:var(--muted); margin-bottom:2px;">이름</span>
+              <input type="text" value="${escapeHtml(d.name || '')}"
+                oninput="updateScanItem(${idx}, 'name', this.value)"
+                style="width:100%; margin:0; padding:6px 8px; font-size:13px;" />
+            </label>
+            <label style="display:block;">
+              <span style="display:block; font-size:10px; color:var(--muted); margin-bottom:2px;">수량</span>
+              <input type="text" value="${escapeHtml(d.qty || '')}" placeholder="1개·500g·1팩"
+                oninput="updateScanItem(${idx}, 'qty', this.value)"
+                style="width:100%; margin:0; padding:6px 8px; font-size:13px;" />
+            </label>
+            <label style="display:block;">
+              <span style="display:block; font-size:10px; color:var(--muted); margin-bottom:2px;">위치</span>
+              <select onchange="updateScanItem(${idx}, 'location', this.value)"
+                style="width:100%; margin:0; padding:6px 8px; font-size:13px;">
+                ${SCAN_LOCATIONS.map(l => `<option value="${l.value}" ${(d.location||'fridge')===l.value?'selected':''}>${l.label}</option>`).join('')}
+              </select>
+            </label>
+            <label style="display:block;">
+              <span style="display:block; font-size:10px; color:var(--muted); margin-bottom:2px;">유통기한</span>
+              <input type="date" value="${escapeHtml(d.expiry || '')}"
+                oninput="updateScanItem(${idx}, 'expiry', this.value)"
+                style="width:100%; margin:0; padding:6px 8px; font-size:13px;" />
+            </label>
+          </div>
+          ${d.brand ? `<div style="font-size:10.5px; color:var(--muted); margin-top:6px;">🏷 ${escapeHtml(d.brand)}</div>` : ''}
+        </div>
+      `).join('');
+
+      document.getElementById('modalContent').innerHTML = `
+        <div class="modal-handle"></div>
+        <div class="modal-title">✨ ${items.length}개 품목 감지 ${isAI ? '(Gemini AI · 통합)' : '(모의)'}</div>
+        <p style="color:var(--muted); font-size:12px; margin-bottom:10px; line-height:1.55;">
+          이름·수량·위치·유통기한을 자유롭게 수정하세요. 체크된 항목만 저장됩니다.
+        </p>
+        <div style="max-height:55vh; overflow-y:auto; margin:0 -4px; padding:0 4px;">
+          ${rowsHtml}
+        </div>
+        <div style="height:6px"></div>
+        <button type="button" class="btn btn-ghost btn-small" onclick="addBlankScanItem()" style="width:100%;">➕ 항목 직접 추가</button>
+        <div style="height:10px"></div>
+        <button type="button" class="btn btn-primary" onclick="saveScannedItemsFromState()" ${selectedCount === 0 ? 'disabled style="opacity:.5;"' : ''}>
+          ✅ 선택한 ${selectedCount}개 저장
+        </button>
+        <div style="height:6px"></div>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">취소</button>
+      `;
+    }
+
+    function updateScanItem(idx, field, value) {
+      const items = window.__pendingScanItems || [];
+      if (!items[idx]) return;
+      items[idx][field] = value;
+      // 카운트·테두리 색만 갱신 — 입력 포커스 유지 위해 select·checkbox·remove만 전체 재렌더
+      if (field === 'selected') renderScanResultModal();
+    }
+
+    function removeScanItem(idx) {
+      const items = window.__pendingScanItems || [];
+      if (!items[idx]) return;
+      items.splice(idx, 1);
+      renderScanResultModal();
+    }
+
+    function addBlankScanItem() {
+      const items = window.__pendingScanItems || (window.__pendingScanItems = []);
+      items.push({
+        name: '', qty: '1', confidence: 1, location: 'fridge',
+        expiry: addDays(7), brand: '', selected: true
+      });
+      renderScanResultModal();
+    }
+
     function saveScannedItemsFromState() {
       const items = window.__pendingScanItems || [];
       if (!items.length) { showToast('저장할 품목이 없어요'); return; }
       saveScannedItems(items);
       window.__pendingScanItems = null;
+      window.__pendingScanIsAI = null;
     }
 
     function saveScannedItems(items) {
       let added = 0;
-      items.forEach((d, idx) => {
-        const cb = document.getElementById('scan'+idx);
-        if (cb && cb.checked) {
-          state.inventory.push({
-            id: uid(),
-            name: d.name,
-            qty: d.qty,
-            location: d.location || 'fridge',
-            expiry: d.expiry,
-            brand: d.brand,
-            status: 'certain'
-          });
-          added++;
-        }
+      const skipped = [];
+      items.forEach(d => {
+        if (!d.selected) return;
+        const name = String(d.name || '').trim();
+        if (!name) { skipped.push('(이름 없음)'); return; }
+        state.inventory.push({
+          id: uid(),
+          name,
+          qty: String(d.qty || '1').trim() || '1',
+          location: d.location || 'fridge',
+          expiry: sanitizeExpiryDate(d.expiry, name),
+          brand: d.brand,
+          status: 'certain'
+        });
+        added++;
       });
       save(); closeModal(); renderInventory(); renderHome();
-      showToast(`${added}개 재료 추가 완료`);
+      const skipMsg = skipped.length ? ` (${skipped.length}개 이름 비어 제외)` : '';
+      showToast(`${added}개 재료 추가 완료${skipMsg}`);
     }
 
     // ============== SHOPPING ==============

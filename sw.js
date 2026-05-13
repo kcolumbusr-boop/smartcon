@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v36: Fix expiry past dates — inject today's date in prompt + sanitize Gemini response with food-specific shelf life
-const CACHE_NAME = 'smartcon-v36-expiry-fix';
+// v37: Scan result inline editing — name·qty·location·expiry editable + add·remove items before save
+const CACHE_NAME = 'smartcon-v37-scan-edit';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
