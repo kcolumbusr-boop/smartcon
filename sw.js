@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v35: Export/Import UX — Web Share API + clipboard + download location hint per OS
-const CACHE_NAME = 'smartcon-v35-data-share';
+// v36: Fix expiry past dates — inject today's date in prompt + sanitize Gemini response with food-specific shelf life
+const CACHE_NAME = 'smartcon-v36-expiry-fix';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
