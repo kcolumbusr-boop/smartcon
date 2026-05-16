@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v42: Coupang Partners disclosure visibility — bigger font, amber accent, top border
-const CACHE_NAME = 'smartcon-v42-disclosure-visible';
+// v43: Score-caution consistency — hard caps from getCautionGroups + sodium penalty in diet
+const CACHE_NAME = 'smartcon-v43-score-consistency';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {

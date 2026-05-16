@@ -1303,9 +1303,9 @@
       <div class="list-item" style="padding:8px 0;">
         <div class="list-main">
           <div class="list-title">현재 버전</div>
-          <div class="list-sub" id="appVersionSub">v42 · 2026-05-13 · 광고 푸터 가시성 강화</div>
+          <div class="list-sub" id="appVersionSub">v43 · 2026-05-13 · 점수-경고 일관성 (탄수 84g → 혈당 주의)</div>
         </div>
-        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v42</span>
+        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v43</span>
       </div>
       <div style="height:8px"></div>
       <button class="btn btn-primary" onclick="forceAppUpdate()" style="background:linear-gradient(135deg,#10b981,#06b6d4);">
@@ -5943,37 +5943,78 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
     }
 
     function calcScoresV2(t, goal, items) {
-      const diet = Math.max(0, Math.min(100,
-        100 - Math.max(0, t.kcal - 500)/10 + t.fiber*3 - Math.max(0, t.sugar-20)*2
-      ));
+      // ─── 핵심 원칙 ───
+      // 아래 경고 패널(getCautionGroups)이 띄우는 위험 신호를 점수에 하드 캡으로 반영.
+      // 점수와 경고가 모순되지 않도록 보장 (예: '당뇨 주의' 경고가 뜨면 혈당 점수는 '우수' 불가).
+      const cautions = getCautionGroups(t, items);
+      const hasFlag = (sev, re) => cautions.some(c => c.severity === sev && c.groups.some(g => re.test(g)));
+      const flags = {
+        diabetes_high:   hasFlag('high',   /당뇨|인슐린|혈당/),
+        diabetes_med:    hasFlag('medium', /당뇨|혈당/),
+        diet_high:       hasFlag('high',   /비만|체중/),
+        diet_med:        hasFlag('medium', /비만|체중/),
+        bp_high:         hasFlag('high',   /고혈압|신장|심부전|부종/),
+        bp_med:          hasFlag('medium', /고혈압|신장/),
+        chol_high:       hasFlag('high',   /콜레스테롤|심혈관|담석|췌장염/),
+        chol_med:        hasFlag('medium', /콜레스테롤|심혈관/),
+      };
 
-      // 당뇨 점수 — 보수적 평가 (한국 당뇨협회 기준 반영)
-      // 당뇨 환자 한 끼 권장: 탄수 50–60g, GI 55 이하, 당 10g 이하
+      // ─── 다이어트 점수 (체중 관리) ───
+      // 칼로리·당·지방·나트륨·과탄수 모두 페널티. 단백질·섬유 보너스.
+      let dietScore = 100;
+      if (t.kcal > 500)  dietScore -= (t.kcal - 500) / 10;          // 500↑부터 1점/10kcal
+      if (t.kcal > 800)  dietScore -= (t.kcal - 800) / 5;           // 800↑부터 추가 페널티
+      if (t.sugar > 15)  dietScore -= (t.sugar - 15) * 1.5;
+      if (t.sugar > 25)  dietScore -= (t.sugar - 25) * 2;           // 누적
+      if (t.f > 25)      dietScore -= (t.f - 25) * 1.2;
+      if (t.c > 70)      dietScore -= (t.c - 70) * 0.6;             // 다이어트엔 과탄수도 마이너스
+      if (t.sodium > 800)  dietScore -= (t.sodium - 800) / 30;      // 부종·수분 보유 → 체중 관리 방해
+      if (t.sodium > 1500) dietScore -= (t.sodium - 1500) / 20;     // 추가
+      if (t.fiber > 0)   dietScore += Math.min(15, t.fiber * 2);    // 포만감 보너스
+      if (t.p > 20)      dietScore += 5;                            // 단백질 포만감
+      // 하드 캡: 경고가 뜨면 다이어트 점수 상한 제한
+      if (flags.diet_high)  dietScore = Math.min(dietScore, 45);    // '보통' 이하
+      if (flags.bp_high)    dietScore = Math.min(dietScore, 55);    // 부종 위험
+      if (flags.diet_med || flags.bp_med) dietScore = Math.min(dietScore, 70);
+      const diet = Math.max(0, Math.min(100, Math.round(dietScore)));
+
+      // ─── 혈당 안정 점수 (당뇨 관리) — 한국 당뇨협회 기준 강화 ───
+      // 권장: 탄수 50–60g/끼, GI 55 이하, 당 10g 이하
       const avgGI = items.reduce((s,i) => s + (i.gi || FOOD_DB[i.name]?.gi || 50), 0) / items.length;
       const carbPerMeal = t.c || 0;
+      let dbScore = 100;
+      // GI 페널티
+      if (avgGI > 70)      dbScore -= (avgGI - 70) * 3 + 20;
+      else if (avgGI > 55) dbScore -= (avgGI - 55) * 1.5;
+      // 탄수 페널티 — 50g↑ 1점/g, 70g↑ 1.5점/g 누적, 90g↑ 2점/g 심각
+      if (carbPerMeal > 50) dbScore -= (carbPerMeal - 50) * 1.0;
+      if (carbPerMeal > 70) dbScore -= (carbPerMeal - 70) * 1.5 + 10;
+      if (carbPerMeal > 90) dbScore -= (carbPerMeal - 90) * 2.0;
+      // 당 페널티
+      if (t.sugar > 10) dbScore -= (t.sugar - 10) * 1.5;
+      if (t.sugar > 25) dbScore -= (t.sugar - 25) * 2.5 + 10;
+      // 섬유 보너스 (상한 낮춤 — 섬유로 모든 페널티 상쇄 방지)
+      dbScore += Math.min(10, t.fiber * 1.5);
+      // 단백질·지방 흡수 지연 보너스
+      if ((t.p + t.f) > 40) dbScore += 5;
+      // 하드 캡: 경고가 뜨면 혈당 점수 상한 제한 (점수–경고 일관성 보장)
+      if (flags.diabetes_high) dbScore = Math.min(dbScore, 45);     // '보통' 이하
+      if (flags.diabetes_med)  dbScore = Math.min(dbScore, 65);     // '양호' 이하
+      const diabetes = Math.max(0, Math.min(100, Math.round(dbScore)));
 
-      let diabetesScore = 100;
-      // GI 페널티 — 50 초과부터, 70 이상은 강한 페널티
-      if (avgGI > 70) diabetesScore -= (avgGI - 70) * 3 + 20;
-      else if (avgGI > 55) diabetesScore -= (avgGI - 55) * 1.5;
+      // ─── 근육 증진 점수 (운동 효과) ───
+      // 단백질 중심, 탄수 보너스(연료), 지방·나트륨 페널티
+      let muscleScore = 0;
+      muscleScore += Math.min(60, t.p * 3);                          // 단백질 20g = 60점
+      muscleScore += Math.min(25, t.c * 0.4);                        // 탄수 운동 연료
+      muscleScore += Math.min(10, t.fiber * 1);                      // 섬유 보너스
+      if (t.f > 30)        muscleScore -= (t.f - 30) * 1.5;          // 지방 과다
+      if (t.sodium > 2000) muscleScore -= 10;                        // 고나트륨 — 회복 저해
+      if (t.p < 10)        muscleScore = Math.min(muscleScore, 40);  // 단백질 부족 캡
+      if (flags.chol_high) muscleScore = Math.min(muscleScore, 60);  // 심혈관 위험 시 캡
+      const muscle = Math.max(0, Math.min(100, Math.round(muscleScore)));
 
-      // 탄수 페널티 — 한 끼 50g 초과부터
-      if (carbPerMeal > 70) diabetesScore -= (carbPerMeal - 70) * 1.0 + 15;
-      else if (carbPerMeal > 50) diabetesScore -= (carbPerMeal - 50) * 0.5;
-
-      // 당 페널티 — 10g 초과부터 강하게
-      if (t.sugar > 25) diabetesScore -= (t.sugar - 25) * 2.5 + 15;
-      else if (t.sugar > 10) diabetesScore -= (t.sugar - 10) * 1.5;
-
-      // 섬유 보너스 — 단, 상한 있음 (섬유로 모든 페널티 상쇄 방지)
-      diabetesScore += Math.min(15, t.fiber * 2);
-
-      const diabetes = Math.max(0, Math.min(100, diabetesScore));
-
-      const muscle = Math.max(0, Math.min(100,
-        t.p * 3 + Math.min(40, t.c) - Math.max(0, t.f-25)
-      ));
-      return { diet: Math.round(diet), diabetes: Math.round(diabetes), muscle: Math.round(muscle) };
+      return { diet, diabetes, muscle };
     }
 
     function calcScores(t, goal, items) {
