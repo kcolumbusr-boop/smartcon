@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v44: Item-level contribution analysis — identifies worst-contributing food + specific swap
-const CACHE_NAME = 'smartcon-v44-item-analysis';
+// v45: Partner disclosure layout fix — keep-all wrap, larger gap, shorter text
+const CACHE_NAME = 'smartcon-v45-disclosure-fit';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
