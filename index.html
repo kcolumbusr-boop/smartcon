@@ -1303,9 +1303,9 @@
       <div class="list-item" style="padding:8px 0;">
         <div class="list-main">
           <div class="list-title">현재 버전</div>
-          <div class="list-sub" id="appVersionSub">v43 · 2026-05-13 · 점수-경고 일관성 (탄수 84g → 혈당 주의)</div>
+          <div class="list-sub" id="appVersionSub">v44 · 2026-05-13 · 항목별 상세 분석 (어떤 음식이 문제인지)</div>
         </div>
-        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v43</span>
+        <span class="badge badge-pro" style="background:linear-gradient(135deg,#10b981,#06b6d4);">v44</span>
       </div>
       <div style="height:8px"></div>
       <button class="btn btn-primary" onclick="forceAppUpdate()" style="background:linear-gradient(135deg,#10b981,#06b6d4);">
@@ -6191,6 +6191,222 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
       `;
     }
 
+    // ─── 음식별 대안 사전 (구체적 swap 권장) ───
+    // 단순 "양 줄이기" 대신 "흰쌀밥 → 현미밥 (GI 73→55)" 같은 구체 행동 제시
+    const FOOD_SWAPS = {
+      '흰쌀밥': {
+        carb: '흰쌀밥 → 현미밥 (탄수 28g→23g, 식이섬유 4.5배). 같은 분량이라도 혈당 반응 절반',
+        gi:   '흰쌀밥 → 현미밥 (GI 73→55). 식이섬유로 흡수 지연',
+      },
+      '국수':   { carb: '국수 → 두부면·곤약면 (탄수 22g→2g). 포만감 유지, 칼로리 1/5', gi: '국수 → 메밀국수 (GI 75→59)' },
+      '라면':   { sodium: '라면 → 스프 1/2만 사용 (나트륨 1700→850mg). 또는 우동·잔치국수로 교체', fat: '봉지 후레이크 빼고 콩나물·양배추 추가 → 지방 4g↓, 식이섬유 +2g', carb: '라면 → 곤약라면 (탄수 65g→8g)' },
+      '떡볶이': { carb: '떡 절반 줄이고 양배추·계란 추가. GI 80→55 효과', sugar: '시중 양념 대신 고추장 1숟갈+간장 1숟갈 직접 양념. 당 5g→1g', gi: '단백질(계란·어묵·치즈) 추가하면 GI 80→60 수준' },
+      '피자':   { sodium: '1조각 줄이고 샐러드 추가 → 나트륨 200mg↓, 식이섬유 +3g', fat: '얇은 씬크러스트 권장. 지방 11g→5g', carb: '두꺼운 도우 → 씬크러스트. 탄수 33g→18g' },
+      '햄버거': { sodium: '수제 패티+홀그레인 번. 나트륨 520→200mg. 케첩·마요 빼고 머스타드', fat: '비프 → 치킨 그릴 패티. 지방 14g→5g', carb: '번 빼고 lettuce wrap. 탄수 30g→3g' },
+      '치킨':   { sodium: '후라이드 → 직화·오븐구이. 나트륨 620→300mg', fat: '껍질 제거 시 지방 15g→6g, 칼로리 90 ↓' },
+      '삼겹살': { fat: '삼겹살 → 목살(지방 23g)·돼지등심(지방 11g). 칼로리 절반' },
+      '김치찌개': { sodium: '국물 1/3만 드시면 나트륨 60%↓. 김치·소금 추가 자제' },
+      '된장찌개': { sodium: '국물 1/3만 드시면 나트륨 60%↓. 두부·채소 비중 늘리기' },
+      '순두부찌개': { sodium: '국물 1/3만 드시면 나트륨 60%↓' },
+      '갈비탕': { sodium: '국물 1/3만 드시고 건더기 위주. 나트륨 50%↓' },
+      '바나나': { sugar: '바나나 → 베리류(블루베리·딸기). 당 12g→7g, 항산화 보너스' },
+      '라떼':   { sugar: '라떼 → 아메리카노 또는 무가당 두유라떼. 당 5g→0g' },
+      '비빔밥': { gi: '나물·계란 비중 늘리고 밥 30% 줄이면 GI 65→50' },
+      '김밥':   { sodium: '단무지·햄 빼고 시금치·당근·계란 위주. 나트륨 360→180mg' },
+    };
+
+    // 항목별 영양 기여 + 문제별 주범 식별 + 구체 대안
+    function analyzeItemContributions(items, t) {
+      // 1. 항목별 영양 (item.portion 기준)
+      const breakdown = items.map(item => {
+        const db = FOOD_DB[item.name];
+        const p = Number(item.portion) || 100;
+        const factor = p / 100;
+        return {
+          name: item.name,
+          portion: p,
+          kcal:   db ? Math.round(db.kcal   * factor) : Math.round((Number(item.kcal)||0)),
+          c:      db ? Math.round(db.c      * factor) : Math.round((Number(item.c)||0)),
+          p:      db ? Math.round(db.p      * factor) : Math.round((Number(item.p)||0)),
+          f:      db ? Math.round(db.f      * factor) : Math.round((Number(item.f)||0)),
+          sodium: db ? Math.round(db.sodium * factor) : Math.round((Number(item.sodium)||0)),
+          sugar:  db ? Math.round(db.sugar  * factor * 10) / 10 : Math.round((Number(item.sugar)||0)*10)/10,
+          fiber:  db ? Math.round(db.fiber  * factor * 10) / 10 : Math.round((Number(item.fiber)||0)*10)/10,
+          gi:     db ? db.gi : null,
+          hasData: !!db,
+        };
+      });
+
+      // 2. 문제별 주범 식별
+      const issues = [];
+      const pickTop = (key, threshold) => {
+        const list = breakdown.filter(b => (b[key] || 0) >= threshold).sort((a,b) => b[key] - a[key]);
+        return list[0] || null;
+      };
+      const swap = (name, type) => (FOOD_SWAPS[name] && FOOD_SWAPS[name][type]) || null;
+
+      // 탄수 과다
+      if (t.c > 50) {
+        const top = pickTop('c', 15);
+        if (top) {
+          const pct = Math.round((top.c / t.c) * 100);
+          issues.push({
+            icon: '🍚', severity: t.c > 70 ? 'high' : 'medium',
+            title: `탄수 ${Math.round(t.c)}g (한 끼 50–60g 권장)`,
+            culprit: `${top.name} ${top.portion}g — 탄수 ${top.c}g 차지 (전체 ${pct}%)`,
+            advice: swap(top.name, 'carb') || `${top.name} 분량을 ${Math.round(top.portion/2)}g으로 줄이면 탄수 ~${Math.round(top.c/2)}g 감소`,
+          });
+        }
+      }
+
+      // 나트륨 과다
+      if (t.sodium > 800) {
+        const top = pickTop('sodium', 200);
+        if (top) {
+          const pct = Math.round((top.sodium / t.sodium) * 100);
+          issues.push({
+            icon: '🧂', severity: t.sodium > 1500 ? 'high' : 'medium',
+            title: `나트륨 ${Math.round(t.sodium)}mg (WHO 일 2000mg)`,
+            culprit: `${top.name} — 나트륨 ${top.sodium}mg 차지 (전체 ${pct}%)`,
+            advice: swap(top.name, 'sodium') || `${top.name} 국물·양념 1/3만 섭취 → 나트륨 30~50% 감소`,
+          });
+        }
+      }
+
+      // 당 과다
+      if (t.sugar > 15) {
+        const top = pickTop('sugar', 5);
+        if (top) {
+          issues.push({
+            icon: '🍬', severity: t.sugar > 25 ? 'high' : 'medium',
+            title: `당 ${Math.round(t.sugar)}g (한 끼 25g 권장 한도)`,
+            culprit: `${top.name} — 당 ${top.sugar}g 차지`,
+            advice: swap(top.name, 'sugar') || `${top.name} 양 줄이거나 무가당 대체 권장`,
+          });
+        }
+      }
+
+      // 지방 과다
+      if (t.f > 25) {
+        const top = pickTop('f', 8);
+        if (top) {
+          issues.push({
+            icon: '🥓', severity: t.f > 30 ? 'high' : 'medium',
+            title: `지방 ${Math.round(t.f)}g (한 끼 25g 권장)`,
+            culprit: `${top.name} — 지방 ${top.f}g 차지`,
+            advice: swap(top.name, 'fat') || `${top.name} 구이/찜으로 조리하거나 살코기 부위 선택`,
+          });
+        }
+      }
+
+      // 고GI 항목 (혈당 급상승)
+      const highGI = breakdown.filter(b => b.gi && b.gi >= 70).sort((a,b) => b.gi - a.gi);
+      if (highGI.length) {
+        const top = highGI[0];
+        issues.push({
+          icon: '📈', severity: 'medium',
+          title: `고GI 식품 — 혈당 급상승 위험`,
+          culprit: `${top.name} GI ${top.gi} (55 초과 고GI)`,
+          advice: swap(top.name, 'gi') || `${top.name}와 식이섬유(채소)·단백질(계란·두부) 같이 섭취 → 흡수 지연`,
+        });
+      }
+
+      // 칼로리 과다
+      if (t.kcal > 800) {
+        const top = pickTop('kcal', 200);
+        if (top) {
+          const pct = Math.round((top.kcal / t.kcal) * 100);
+          issues.push({
+            icon: '🔥', severity: 'medium',
+            title: `${Math.round(t.kcal)} kcal (한 끼 평균 600 초과)`,
+            culprit: `${top.name} — ${top.kcal} kcal (전체 ${pct}%)`,
+            advice: `${top.name} 분량을 ${Math.round(top.portion*0.7)}g으로 줄이면 ~${Math.round(top.kcal*0.3)} kcal 감소`,
+          });
+        }
+      }
+
+      return { breakdown, issues };
+    }
+
+    // 항목별 상세 분석 패널 렌더링
+    function renderItemContributions(items, t) {
+      const { breakdown, issues } = analyzeItemContributions(items, t);
+      if (!issues.length && breakdown.length <= 1) return ''; // 단일 항목 + 문제 없음 → 생략
+
+      const sevColor = { high: '#ef4444', medium: '#f59e0b' };
+      const sevLabel = { high: '문제', medium: '주의' };
+
+      // 항목별 영양 미니 테이블 (어떤 음식이 무엇을 얼마나 기여하는지)
+      const tableRows = breakdown.map(b => `
+        <tr style="border-top:1px solid rgba(255,255,255,.04);">
+          <td style="padding:6px 8px; font-size:11.5px; color:var(--text); font-weight:600;">
+            ${escapeHtml(b.name)} <span style="color:var(--muted); font-weight:400;">${b.portion}g</span>
+          </td>
+          <td style="padding:6px 6px; font-size:11px; color:var(--muted); text-align:right;">${b.kcal}kcal</td>
+          <td style="padding:6px 6px; font-size:11px; color:${b.c >= 30 ? '#fbbf24' : 'var(--muted)'}; text-align:right;">${b.c}g</td>
+          <td style="padding:6px 6px; font-size:11px; color:${b.sodium >= 400 ? '#fbbf24' : 'var(--muted)'}; text-align:right;">${b.sodium}mg</td>
+          <td style="padding:6px 6px; font-size:11px; color:${b.f >= 10 ? '#fbbf24' : 'var(--muted)'}; text-align:right;">${b.f}g</td>
+        </tr>
+      `).join('');
+
+      return `
+        <div style="margin-top:14px; padding:14px; border-radius:12px; background:rgba(59,130,246,.05); border:1px solid rgba(59,130,246,.2);">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.05);">
+            <span style="font-size:20px;">🔍</span>
+            <div style="flex:1;">
+              <div style="font-size:13px; font-weight:800; color:var(--text);">항목별 상세 분석</div>
+              <div style="font-size:10.5px; color:var(--muted); margin-top:2px;">어떤 음식이 어떤 문제를 일으키는지 + 구체 개선안</div>
+            </div>
+          </div>
+
+          ${issues.length ? `
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+              ${issues.map(iss => `
+                <div style="padding:10px 12px; background:rgba(0,0,0,.25); border-left:3px solid ${sevColor[iss.severity]}; border-radius:6px;">
+                  <div style="display:flex; gap:8px; align-items:center; margin-bottom:5px;">
+                    <span style="font-size:18px;">${iss.icon}</span>
+                    <span style="font-size:12px; font-weight:800; color:${sevColor[iss.severity]};">[${sevLabel[iss.severity]}]</span>
+                    <span style="font-size:12px; font-weight:700; color:var(--text);">${escapeHtml(iss.title)}</span>
+                  </div>
+                  <div style="font-size:11.5px; color:#fcd34d; padding:4px 0 6px 26px; line-height:1.5;">
+                    <b>주범:</b> ${escapeHtml(iss.culprit)}
+                  </div>
+                  <div style="font-size:11.5px; color:#6ee7b7; padding:0 0 0 26px; line-height:1.55;">
+                    <b>💡 개선:</b> ${escapeHtml(iss.advice)}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <div style="padding:10px; background:rgba(16,185,129,.08); border-radius:6px; font-size:11.5px; color:#6ee7b7; text-align:center; margin-bottom:12px;">
+              ✓ 영양 균형 양호 — 특별히 줄이거나 바꿔야 할 항목 없음
+            </div>
+          `}
+
+          ${breakdown.length > 1 ? `
+            <div style="font-size:10.5px; color:var(--muted); margin-bottom:5px; font-weight:700; letter-spacing:.04em;">📊 항목별 영양 기여</div>
+            <div style="overflow-x:auto; background:rgba(0,0,0,.2); border-radius:6px;">
+              <table style="width:100%; border-collapse:collapse; min-width:280px;">
+                <thead>
+                  <tr style="background:rgba(0,0,0,.3);">
+                    <th style="padding:6px 8px; font-size:10px; color:var(--muted); text-align:left; font-weight:700;">항목</th>
+                    <th style="padding:6px 6px; font-size:10px; color:var(--muted); text-align:right; font-weight:700;">칼로리</th>
+                    <th style="padding:6px 6px; font-size:10px; color:var(--muted); text-align:right; font-weight:700;">탄수</th>
+                    <th style="padding:6px 6px; font-size:10px; color:var(--muted); text-align:right; font-weight:700;">나트륨</th>
+                    <th style="padding:6px 6px; font-size:10px; color:var(--muted); text-align:right; font-weight:700;">지방</th>
+                  </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+            </div>
+            <div style="font-size:10px; color:var(--muted); margin-top:6px; line-height:1.5;">
+              ※ <span style="color:#fbbf24;">노란색</span>은 해당 항목이 평균 이상으로 많이 기여하는 영양소를 표시합니다.
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
     // 이 음식을 주의해야 할 사람 자동 분석
     // 일반인에겐 좋아도 특정 질환자에겐 위험할 수 있는 식품 식별
     function getCautionGroups(t, items) {
@@ -6412,6 +6628,8 @@ GI(혈당지수)는 대략값(0~100, 모르면 50).`;
               개인별 질환·체질·약물에 따라 다를 수 있어요.
             </div>
           </div>
+
+          ${renderItemContributions(items, t)}
 
           ${(goal === 'diabetes' || (state.profile.has_diabetes)) ? renderDiabetesAdvisory(t, items, scores.diabetes) : ''}
 

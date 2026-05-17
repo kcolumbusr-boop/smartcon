@@ -1,6 +1,6 @@
 // SmartCon Service Worker - offline support
-// v43: Score-caution consistency — hard caps from getCautionGroups + sodium penalty in diet
-const CACHE_NAME = 'smartcon-v43-score-consistency';
+// v44: Item-level contribution analysis — identifies worst-contributing food + specific swap
+const CACHE_NAME = 'smartcon-v44-item-analysis';
 const urlsToCache = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
